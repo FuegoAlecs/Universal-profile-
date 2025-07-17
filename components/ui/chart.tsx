@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@tanstack/react-charts"
-import { ChartConfig, ChartContext } from "@tanstack/react-charts/dist/lib/react/ChartContext"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@tanstack/react-query-charts"
+import { ChartConfig, ChartContext } from "@tanstack/react-query-charts/dist/lib/react/ChartContext"
 import { cn } from "@/lib/utils"
 import { SelectContent, SelectItem } from "@/components/ui/select"
 

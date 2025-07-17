@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import RainbowKit styles here */
-@import "@rainbow-me/rainbowkit/styles.css";
-
 @layer base {
   :root {
     --background: 0 0% 100%;
