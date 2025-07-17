@@ -46,7 +46,6 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@rainbow-me/rainbowkit": "latest",
-    "@tanstack/react-charts": "latest",
     "@tanstack/react-query": "latest",
     "@tanstack/react-table": "^8.13.2",
     "@typechain/ethers-v6": "latest",
