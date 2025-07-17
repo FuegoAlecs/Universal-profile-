@@ -1,259 +1,126 @@
-import { alchemyRequest, ALCHEMY_CONFIG, type SupportedChain } from "./alchemy"
-import { redis, CACHE_TTL } from "./redis"
-import type { AlchemyProfile, AlchemyNFT, AlchemyActivity } from "@/types/alchemy"
+import type { AlchemyProfile } from "@/types/alchemy"
+import { redis } from "@/lib/redis"
 
-export class ProfileService {
-  // ENS Resolution with caching
-  async resolveENS(address: string): Promise<{ name?: string; avatar?: string; bio?: string }> {
-    const cacheKey = `ens:${address.toLowerCase()}`
-    const cached = await redis.get<any>(cacheKey)
+const PROFILE_CACHE_TTL = 60 * 15 // 15 minutes
+const SOCIAL_PROFILE_CACHE_TTL = 60 * 60 * 24 // 24 hours
 
-    if (cached) {
-      return cached
+export const profileService = {
+  async getProfile(address: string): Promise<AlchemyProfile | null> {
+    const cacheKey = `profile:${address}`
+    const cachedProfile = await redis.get<AlchemyProfile>(cacheKey)
+    if (cachedProfile) {
+      console.log(`Cache hit for profile: ${address}`)
+      return cachedProfile
     }
 
-    try {
-      // Use direct API calls instead of SDK
-      const ensName = await this.resolveENSName(address)
-      let avatar: string | undefined
-      let bio: string | undefined
-
-      if (ensName) {
-        try {
-          avatar = await this.getENSAvatar(ensName)
-        } catch (error) {
-          console.warn("Failed to get ENS avatar:", error)
-        }
-
-        try {
-          bio = await this.getENSTextRecord(ensName, "description")
-        } catch (error) {
-          console.warn("Failed to get ENS text records:", error)
-        }
-      }
-
-      const result = { name: ensName || undefined, avatar, bio }
-      await redis.set(cacheKey, result, CACHE_TTL.ENS_DATA)
-
-      return result
-    } catch (error) {
-      console.error("ENS resolution error:", error)
-      return {}
-    }
-  }
-
-  private async resolveENSName(address: string): Promise<string | null> {
-    try {
-      const result = await alchemyRequest("ethereum", "alchemy_resolveAddress", [address])
-      return result
-    } catch (error) {
-      console.error("ENS name resolution error:", error)
-      return null
-    }
-  }
-
-  private async getENSAvatar(ensName: string): Promise<string | undefined> {
-    try {
-      const result = await alchemyRequest("ethereum", "alchemy_getENSAvatar", [ensName])
-      return result
-    } catch (error) {
-      console.error("ENS avatar error:", error)
-      return undefined
-    }
-  }
-
-  private async getENSTextRecord(ensName: string, key: string): Promise<string | undefined> {
-    try {
-      const result = await alchemyRequest("ethereum", "alchemy_getENSTextRecord", [ensName, key])
-      return result
-    } catch (error) {
-      console.error("ENS text record error:", error)
-      return undefined
-    }
-  }
-
-  // Multi-chain NFT aggregation
-  async aggregateNFTs(address: string): Promise<AlchemyNFT[]> {
-    const cacheKey = `nfts:${address.toLowerCase()}`
-    const cached = await redis.get<AlchemyNFT[]>(cacheKey)
-
-    if (cached) {
-      return cached
+    console.log(`Cache miss for profile: ${address}, fetching...`)
+    // Mock data for now, replace with actual Alchemy SDK calls
+    const profile: AlchemyProfile = {
+      address,
+      ensName: await this.resolveEns(address),
+      ensAvatar: null, // Placeholder for ENS avatar
+      zkVerified: Math.random() > 0.5, // Mock ZK verification
+      isSociallyVerified: false, // Will be set by resolveSocialProfiles
+      twitterHandle: null,
+      twitterFollowers: null,
+      lensFollowers: null,
+      farcasterFollowers: null,
+      linkedWallets: [address, "0xAbc123Def4567890Abc123Def4567890Abc123D"], // Mock linked wallets
     }
 
-    try {
-      const nftPromises = Object.entries(ALCHEMY_CONFIG.networks).map(async ([chainName, config]) => {
-        try {
-          const result = await alchemyRequest(chainName as SupportedChain, "alchemy_getNFTs", [
-            address,
-            { excludeFilters: ["SPAM"], omitMetadata: false },
-          ])
+    // Enrich with social profiles
+    const socialData = await this.resolveSocialProfiles(address)
+    profile.twitterHandle = socialData.twitterHandle
+    profile.twitterFollowers = socialData.twitterFollowers
+    profile.lensFollowers = socialData.lensFollowers
+    profile.farcasterFollowers = socialData.farcasterFollowers
+    profile.isSociallyVerified = socialData.isSociallyVerified
 
-          return (result.ownedNfts || []).map((nft: any) => ({
-            contract: {
-              address: nft.contract.address,
-              name: nft.contract.name || "Unknown",
-              symbol: nft.contract.symbol || "UNKNOWN",
-            },
-            tokenId: nft.id.tokenId,
-            name: nft.title || `#${nft.id.tokenId}`,
-            description: nft.description,
-            image: nft.media?.[0]?.gateway || nft.media?.[0]?.raw,
-            chain: chainName as SupportedChain,
-            attributes: nft.metadata?.attributes || [],
-          }))
-        } catch (error) {
-          console.error(`Error fetching NFTs from ${chainName}:`, error)
-          return []
-        }
-      })
+    await redis.setex(cacheKey, PROFILE_CACHE_TTL, profile)
+    return profile
+  },
 
-      const results = await Promise.all(nftPromises)
-      const allNFTs = results.flat()
-
-      await redis.set(cacheKey, allNFTs, CACHE_TTL.NFT_DATA)
-      return allNFTs
-    } catch (error) {
-      console.error("NFT aggregation error:", error)
-      return []
+  async resolveEns(address: string): Promise<string | null> {
+    // Mock ENS resolution
+    const ensNames = {
+      "0x1234567890abcdef1234567890abcdef12345678": "vitalik.eth",
+      "0xabcdef1234567890abcdef1234567890abcdef12": "satoshi.eth",
+      "0xAbc123Def4567890Abc123Def4567890Abc123D": "testuser.eth",
     }
-  }
+    return (ensNames as any)[address] || null
+  },
 
-  // Activity feed with smart categorization
-  async getActivityFeed(address: string): Promise<AlchemyActivity[]> {
-    const cacheKey = `activity:${address.toLowerCase()}`
-    const cached = await redis.get<AlchemyActivity[]>(cacheKey)
+  async resolveSocialProfiles(address: string): Promise<{
+    twitterHandle: string | null
+    twitterFollowers: number | null
+    lensFollowers: number | null
+    farcasterFollowers: number | null
+    isSociallyVerified: boolean
+  }> {
+    const cacheKey = `social_profile:${address}`
+    const cachedSocialData = await redis.get<{
+      twitterHandle: string | null
+      twitterFollowers: number | null
+      lensFollowers: number | null
+      farcasterFollowers: number | null
+      isSociallyVerified: boolean
+    }>(cacheKey)
 
-    if (cached) {
-      return cached
+    if (cachedSocialData) {
+      console.log(`Cache hit for social profile: ${address}`)
+      return cachedSocialData
     }
 
-    try {
-      const result = await alchemyRequest("ethereum", "alchemy_getAssetTransfers", [
-        {
-          fromAddress: address,
-          toAddress: address,
-          category: ["external", "erc20", "erc721", "erc1155"],
-          maxCount: 50,
-          order: "desc",
-        },
-      ])
+    console.log(`Cache miss for social profile: ${address}, fetching...`)
 
-      const activities: AlchemyActivity[] = (result.transfers || []).map((transfer: any) => {
-        // Smart categorization
-        let category: AlchemyActivity["category"] = "external"
+    // Mock social data
+    const twitter = await this.mockTwitterResolution(address)
+    const lens = await this.mockLensResolution(address)
+    const farcaster = await this.mockFarcasterResolution(address)
 
-        if (transfer.category === "erc721" || transfer.category === "erc1155") {
-          category = transfer.from?.toLowerCase() === address.toLowerCase() ? "send" : "receive"
-        } else if (transfer.category === "erc20") {
-          if (this.isSwapTransaction(transfer)) {
-            category = "swap"
-          } else if (this.isStakingTransaction(transfer)) {
-            category = "stake"
-          } else {
-            category = transfer.from?.toLowerCase() === address.toLowerCase() ? "send" : "receive"
-          }
-        }
+    // Simple mock for social verification: true if at least two social accounts are linked
+    const linkedSocialAccounts = [twitter.handle, lens.handle, farcaster.handle].filter(Boolean).length
+    const isSociallyVerified = linkedSocialAccounts >= 2
 
-        return {
-          hash: transfer.hash,
-          blockNum: transfer.blockNum,
-          from: transfer.from || "",
-          to: transfer.to || "",
-          value: transfer.value?.toString(),
-          category,
-          metadata: {
-            blockTimestamp: Date.now() / 1000, // Simplified for demo
-          },
-        }
-      })
-
-      await redis.set(cacheKey, activities, CACHE_TTL.ACTIVITY_DATA)
-      return activities
-    } catch (error) {
-      console.error("Activity feed error:", error)
-      return []
-    }
-  }
-
-  // Social profile resolution
-  async resolveSocialProfiles(address: string): Promise<AlchemyProfile> {
-    const cacheKey = `social:${address.toLowerCase()}`
-    const cached = await redis.get<AlchemyProfile>(cacheKey)
-
-    if (cached) {
-      return cached
+    const socialData = {
+      twitterHandle: twitter.handle,
+      twitterFollowers: twitter.followers,
+      lensFollowers: lens.followers,
+      farcasterFollowers: farcaster.followers,
+      isSociallyVerified,
     }
 
-    try {
-      const ensData = await this.resolveENS(address)
+    await redis.setex(cacheKey, SOCIAL_PROFILE_CACHE_TTL, socialData)
+    return socialData
+  },
 
-      const profile: AlchemyProfile = {
-        ens: ensData.name,
-        avatar: ensData.avatar,
-        bio: ensData.bio,
-        lens: this.mockLensResolution(address),
-        farcaster: this.mockFarcasterResolution(address),
-      }
-
-      await redis.set(cacheKey, profile, CACHE_TTL.SOCIAL_DATA)
-      return profile
-    } catch (error) {
-      console.error("Social profile resolution error:", error)
-      return {}
+  async mockTwitterResolution(address: string): Promise<{ handle: string | null; followers: number | null }> {
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const twitterHandles: { [key: string]: { handle: string; followers: number } } = {
+      "0x1234567890abcdef1234567890abcdef12345678": { handle: "vitalik_eth", followers: 1200000 },
+      "0xAbc123Def4567890Abc123Def4567890Abc123D": { handle: "cyber_punk_dev", followers: 50000 },
     }
-  }
+    return twitterHandles[address] || { handle: null, followers: null }
+  },
 
-  // Helper methods
-  private isSwapTransaction(transfer: any): boolean {
-    const dexRouters = [
-      "0x7a250d5630b4cf539739df2c5dacb4c659f2488d", // Uniswap V2
-      "0xe592427a0aece92de3edee1f18e0157c05861564", // Uniswap V3
-      "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f", // SushiSwap
-    ]
-
-    return dexRouters.some((router) => transfer.to?.toLowerCase() === router.toLowerCase())
-  }
-
-  private isStakingTransaction(transfer: any): boolean {
-    const stakingContracts = [
-      "0x00000000219ab540356cbb839cbe05303d7705fa", // ETH 2.0 Deposit
-      "0x5e74c9036fb86bd7ecdcb084a0673efc32ea31cb", // sETH
-    ]
-
-    return stakingContracts.some((contract) => transfer.to?.toLowerCase() === contract.toLowerCase())
-  }
-
-  private mockLensResolution(address: string): string | undefined {
-    const knownAddresses: Record<string, string> = {
-      "0xd8da6bf26964af9d7eed9e03e53415d37aa96045": "vitalik.lens",
-      "0x742d35cc6634c0532925a3b8d4c9db96c4b4d8b": "vitalik.lens",
+  async mockLensResolution(address: string): Promise<{ handle: string | null; followers: number | null }> {
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const lensHandles: { [key: string]: { handle: string; followers: number } } = {
+      "0x1234567890abcdef1234567890abcdef12345678": { handle: "vitalik.lens", followers: 800000 },
+      "0xAbc123Def4567890Abc123Def4567890Abc123D": { handle: "metaverse_explorer.lens", followers: 30000 },
     }
+    return lensHandles[address] || { handle: null, followers: null }
+  },
 
-    return knownAddresses[address.toLowerCase()]
-  }
-
-  private mockFarcasterResolution(address: string): string | undefined {
-    const knownAddresses: Record<string, string> = {
-      "0xd8da6bf26964af9d7eed9e03e53415d37aa96045": "vitalik",
-      "0x742d35cc6634c0532925a3b8d4c9db96c4b4d8b": "vitalik",
+  async mockFarcasterResolution(address: string): Promise<{ handle: string | null; followers: number | null }> {
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const farcasterHandles: { [key: string]: { handle: string; followers: number } } = {
+      "0x1234567890abcdef1234567890abcdef12345678": { handle: "vitalik", followers: 600000 },
+      "0xAbc123Def4567890Abc123Def4567890Abc123D": { handle: "web3_innovator", followers: 25000 },
     }
-
-    return knownAddresses[address.toLowerCase()]
-  }
-
-  // Cache invalidation
-  async invalidateUserCache(address: string): Promise<void> {
-    const keys = [
-      `ens:${address.toLowerCase()}`,
-      `nfts:${address.toLowerCase()}`,
-      `activity:${address.toLowerCase()}`,
-      `social:${address.toLowerCase()}`,
-      `profile:${address.toLowerCase()}`,
-    ]
-
-    await Promise.all(keys.map((key) => redis.del(key)))
-  }
+    return farcasterHandles[address] || { handle: null, followers: null }
+  },
 }
-
-export const profileService = new ProfileService()

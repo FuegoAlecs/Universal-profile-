@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "universal-profile-card",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
-    "@hookform/resolvers": "^3.9.1",
     "@nomicfoundation/hardhat-chai-matchers": "latest",
     "@nomicfoundation/hardhat-ethers": "latest",
     "@nomicfoundation/hardhat-ignition-ethers": "latest",
@@ -33,6 +32,7 @@
     "@radix-ui/react-popover": "latest",
     "@radix-ui/react-progress": "latest",
     "@radix-ui/react-radio-group": "latest",
+    "@radix-ui/react-resizable": "^1.0.0",
     "@radix-ui/react-scroll-area": "latest",
     "@radix-ui/react-select": "latest",
     "@radix-ui/react-separator": "latest",
@@ -51,12 +51,10 @@
     "@types/chai": "latest",
     "@types/mocha": "latest",
     "@upstash/redis": "latest",
-    "autoprefixer": "^10.4.20",
     "chai": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",
-    "date-fns": "4.1.0",
     "dotenv": "latest",
     "embla-carousel-react": "latest",
     "ethers": "latest",
@@ -85,15 +83,16 @@
     "three": "latest",
     "ts-node": "latest",
     "typechain": "latest",
-    "vaul": "latest",
-    "zod": "^3.24.1"
+    "vaul": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.4",
     "postcss": "^8.5",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
 }

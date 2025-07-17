@@ -1,57 +1,43 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { profileService } from "@/lib/profile-service"
-import { webSocketService } from "@/lib/websocket-service"
-import type { AlchemyActivity } from "@/types/alchemy"
+import type { Activity } from "@/types/alchemy"
 
 export function useAlchemyActivity(address: string) {
-  const [data, setData] = useState<AlchemyActivity[]>([])
-  const [error, setError] = useState<Error | null>(null)
+  const [data, setData] = useState<Activity[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  const fetchActivity = async () => {
-    if (!address) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const activities = await profileService.getActivityFeed(address)
-      setData(activities)
-    } catch (err) {
-      setError(err as Error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    fetchActivity()
-  }, [address])
-
-  // Real-time updates via WebSocket
-  useEffect(() => {
-    if (!address) return
-
-    const handleNewActivity = (txData: any) => {
-      // Refresh activity feed when new transaction is detected
-      setTimeout(fetchActivity, 2000) // Small delay to ensure transaction is indexed
+    if (!address) {
+      setData(null)
+      return
     }
 
-    const subscriptionId = webSocketService.subscribeToAddress(address, handleNewActivity)
-
-    return () => {
-      if (subscriptionId) {
-        webSocketService.unsubscribe(subscriptionId.toString(), handleNewActivity)
+    const fetchActivity = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`/api/alchemy/activity/${address}`)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const activityData: Activity[] = await response.json()
+        setData(activityData)
+      } catch (e: any) {
+        setError(e)
+        console.error("Failed to fetch activity:", e)
+      } finally {
+        setIsLoading(false)
       }
     }
+
+    // Implement polling for real-time updates
+    fetchActivity() // Initial fetch
+    const interval = setInterval(fetchActivity, 30000) // Poll every 30 seconds
+
+    return () => clearInterval(interval) // Cleanup on unmount
   }, [address])
 
-  return {
-    data,
-    error,
-    isLoading,
-    mutate: fetchActivity,
-  }
+  return { data, isLoading, error }
 }

@@ -1,38 +1,39 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { profileService } from "@/lib/profile-service"
-import type { AlchemyNFT } from "@/types/alchemy"
+import type { Nft } from "@/types/alchemy"
 
 export function useAlchemyNftApi(address: string) {
-  const [data, setData] = useState<AlchemyNFT[]>([])
-  const [error, setError] = useState<Error | null>(null)
+  const [data, setData] = useState<Nft[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  const fetchNFTs = async () => {
-    if (!address) return
-
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const nfts = await profileService.aggregateNFTs(address)
-      setData(nfts)
-    } catch (err) {
-      setError(err as Error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    fetchNFTs()
+    if (!address) {
+      setData(null)
+      return
+    }
+
+    const fetchNfts = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`/api/alchemy/nfts/${address}`)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const nftsData: Nft[] = await response.json()
+        setData(nftsData)
+      } catch (e: any) {
+        setError(e)
+        console.error("Failed to fetch NFTs:", e)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchNfts()
   }, [address])
 
-  return {
-    data,
-    error,
-    isLoading,
-    mutate: fetchNFTs,
-  }
+  return { data, isLoading, error }
 }

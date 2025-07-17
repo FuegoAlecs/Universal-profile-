@@ -120,6 +120,13 @@ class InMemoryCache {
   }
 }
 
+// Initialize Upstash Redis client
+// Environment variables are automatically provided by Vercel for Upstash integration
+const redisClient = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || "http://localhost:8079", // Fallback for local dev
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || "local_token", // Fallback for local dev
+})
+
 export const redis = new RedisCache()
 
 // Cache TTL constants (in seconds)
@@ -130,3 +137,13 @@ export const CACHE_TTL = {
   ACTIVITY_DATA: 2 * 60, // 2 minutes
   SOCIAL_DATA: 30 * 60, // 30 minutes
 } as const
+
+// You can add more Redis-related utility functions here if needed
+// For example, a function to clear cache for a specific key pattern
+export async function clearCache(pattern: string) {
+  const keys = await redisClient.keys(pattern)
+  if (keys.length > 0) {
+    await redisClient.del(...keys)
+    console.log(`Cleared ${keys.length} keys matching pattern: ${pattern}`)
+  }
+}
