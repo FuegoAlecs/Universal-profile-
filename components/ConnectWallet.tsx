@@ -4,8 +4,10 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/hooks/use-toast"
 import { motion } from "framer-motion"
-import { Zap } from "lucide-react"
+import { Zap, Sun, Moon } from "lucide-react" // Import Sun and Moon icons
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch" // Import Switch component
+import { useTheme } from "next-themes" // Import useTheme hook
 
 interface ConnectWalletProps {
   setAddress: (address: string | null) => void
@@ -16,6 +18,7 @@ interface ConnectWalletProps {
 
 export default function ConnectWallet({ setAddress, setIsConnected, isConnected, address }: ConnectWalletProps) {
   const [isConnecting, setIsConnecting] = useState(false)
+  const { theme, setTheme } = useTheme() // Use the useTheme hook
 
   const connectWallet = async () => {
     setIsConnecting(true)
@@ -102,7 +105,7 @@ export default function ConnectWallet({ setAddress, setIsConnected, isConnected,
           </CardTitle>
           <CardDescription className="text-slate-300">Connect your wallet to access the metaverse</CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center">
+        <CardContent className="flex flex-col items-center gap-4">
           {!isConnected ? (
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Button
@@ -128,6 +131,18 @@ export default function ConnectWallet({ setAddress, setIsConnected, isConnected,
               </Button>
             </div>
           )}
+          <div className="flex items-center gap-2 mt-4">
+            {theme === "light" ? (
+              <Sun className="h-5 w-5 text-yellow-400" />
+            ) : (
+              <Moon className="h-5 w-5 text-blue-400" />
+            )}
+            <Switch
+              checked={theme === "dark"}
+              onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+              aria-label="Toggle dark mode"
+            />
+          </div>
         </CardContent>
       </Card>
     </motion.div>

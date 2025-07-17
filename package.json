@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@alch/alchemy-sdk": "latest",
     "@emotion/is-prop-valid": "latest",
     "@nomicfoundation/hardhat-chai-matchers": "latest",
     "@nomicfoundation/hardhat-ethers": "latest",

@@ -7,9 +7,11 @@ import ProfileHeader from "./ProfileHeader"
 import SocialLinks from "./SocialLinks"
 import NFTGallery from "./NFTGallery"
 import ActivityFeed from "./ActivityFeed"
+import WalletPortfolio from "./WalletPortfolio" // Import WalletPortfolio
 import { useAlchemyProfile } from "@/hooks/useAlchemyProfile"
 import { useAlchemyNftApi } from "@/hooks/useAlchemyNftApi"
 import { useAlchemyActivity } from "@/hooks/useAlchemyActivity"
+import { useAlchemyTokenBalances } from "@/hooks/useAlchemyTokenBalances" // Import the new hook
 import { motion } from "framer-motion"
 
 interface ProfileCardProps {
@@ -19,15 +21,17 @@ interface ProfileCardProps {
 export default function ProfileCard({ address }: ProfileCardProps) {
   const [activeTab, setActiveTab] = useState("overview")
 
-  const { data: profile, isLoading: profileLoading } = useAlchemyProfile(address)
-  const { data: nfts, isLoading: nftsLoading } = useAlchemyNftApi(address)
-  const { data: activities, isLoading: activitiesLoading } = useAlchemyActivity(address)
+  const { data: profile, isLoading: profileLoading } = useAlchemyProfile(address || "")
+  const { data: nfts, isLoading: nftsLoading } = useAlchemyNftApi(address || "")
+  const { data: activities, isLoading: activitiesLoading } = useAlchemyActivity(address || "")
+  const { data: tokenBalances, isLoading: tokenBalancesLoading } = useAlchemyTokenBalances(address || "") // Use the new hook
+
+  const isLoading = profileLoading || nftsLoading || activitiesLoading || tokenBalancesLoading
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
       <Card className="w-full max-w-6xl mx-auto overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 shadow-2xl">
-        <ProfileHeader address={address} profile={profile} isLoading={profileLoading} />
-
+        <ProfileHeader profile={profile} isLoading={profileLoading} /> {/* Pass profile and isLoading */}
         <div className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 bg-slate-800/50 backdrop-blur-sm border border-slate-700/50">
@@ -56,6 +60,15 @@ export default function ProfileCard({ address }: ProfileCardProps) {
                     compact={true}
                   />
                 </motion.div>
+                {/* Add WalletPortfolio to overview */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="lg:col-span-2"
+                >
+                  <WalletPortfolio balances={tokenBalances || []} isLoading={tokenBalancesLoading} />
+                </motion.div>
               </div>
             </TabsContent>
 
@@ -68,7 +81,7 @@ export default function ProfileCard({ address }: ProfileCardProps) {
             </TabsContent>
 
             <TabsContent value="social" className="mt-6">
-              <SocialLinks address={address} profile={profile} isLoading={profileLoading} />
+              <SocialLinks profile={profile} /> {/* Pass profile */}
             </TabsContent>
           </Tabs>
         </div>

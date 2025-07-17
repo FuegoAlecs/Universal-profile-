@@ -55,7 +55,7 @@ function HolographicNFT({ nft, index }: { nft: AlchemyNFT; index: number }) {
             <motion.a
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              href={`https://opensea.io/assets/ethereum/${nft.contract.address}/${nft.tokenId}`}
+              href={`https://opensea.io/assets/${nft.chain?.toLowerCase() || "ethereum"}/${nft.contract.address}/${nft.tokenId}`}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-slate-900/80 backdrop-blur-sm hover:bg-slate-800/80 p-2 rounded-full shadow-lg border border-slate-700/50"

@@ -18,6 +18,7 @@ export default function ActivityFeed({ activities, isLoading, compact = false }:
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "send":
+      case "external": // Alchemy uses 'external' for native token transfers
         return <ArrowUpRight className="h-4 w-4 text-red-400" />
       case "receive":
         return <ArrowDownLeft className="h-4 w-4 text-green-400" />
@@ -33,6 +34,7 @@ export default function ActivityFeed({ activities, isLoading, compact = false }:
   const getActivityColor = (type: string) => {
     switch (type) {
       case "send":
+      case "external":
         return "border-red-500/30 bg-red-500/10"
       case "receive":
         return "border-green-500/30 bg-green-500/10"
@@ -123,7 +125,7 @@ export default function ActivityFeed({ activities, isLoading, compact = false }:
                     <span className="font-medium text-sm capitalize text-white">{activity.category}</span>
                     {activity.value && (
                       <Badge className="text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                        {Number.parseFloat(activity.value).toFixed(4)} ETH
+                        {activity.value}
                       </Badge>
                     )}
                   </div>
@@ -131,7 +133,7 @@ export default function ActivityFeed({ activities, isLoading, compact = false }:
                   <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
                     <span className="font-mono">Block {activity.blockNum}</span>
                     <span>•</span>
-                    <span>{formatTimeAgo(activity.metadata.blockTimestamp)}</span>
+                    <span>{formatTimeAgo(activity.timestamp)}</span> {/* Use timestamp directly */}
                   </div>
 
                   {activity.to && (

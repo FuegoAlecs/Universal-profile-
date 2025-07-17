@@ -4,21 +4,15 @@ import { useState, useEffect } from "react"
 import ProfileCard from "@/components/ProfileCard"
 import ConnectWallet from "@/components/ConnectWallet"
 import { AnimatePresence, motion } from "framer-motion"
-import { useAlchemyProfile } from "@/hooks/useAlchemyProfile"
-import { useAlchemyNftApi } from "@/hooks/useAlchemyNftApi"
-import { useAlchemyActivity } from "@/hooks/useAlchemyActivity"
+// Removed direct imports for hooks here as ProfileCard now handles them
 import { Toaster } from "@/components/ui/toaster"
 
 export default function Home() {
   const [address, setAddress] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
 
-  // Fetch profile, NFTs, and activity based on the connected address
-  const { data: profile, isLoading: isProfileLoading } = useAlchemyProfile(address || "")
-  const { data: nfts, isLoading: isNftsLoading } = useAlchemyNftApi(address || "")
-  const { data: activity, isLoading: isActivityLoading } = useAlchemyActivity(address || "")
-
-  const isLoading = isProfileLoading || isNftsLoading || isActivityLoading
+  // isLoading is now managed within ProfileCard and its sub-components
+  // const isLoading = isProfileLoading || isNftsLoading || isActivityLoading
 
   useEffect(() => {
     const checkWalletConnection = async () => {
@@ -103,7 +97,7 @@ export default function Home() {
               transition={{ duration: 0.5 }}
               className="w-full max-w-6xl"
             >
-              <ProfileCard address={address} profile={profile} nfts={nfts} activity={activity} isLoading={isLoading} />
+              <ProfileCard address={address} /> {/* Removed redundant props */}
             </motion.div>
           ) : (
             <motion.div
