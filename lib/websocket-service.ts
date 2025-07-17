@@ -3,6 +3,7 @@
 export class WebSocketService {
   private subscriptions = new Map<string, Set<(data: any) => void>>()
   private pollingIntervals = new Map<string, NodeJS.Timeout>()
+  private webSocketConnections = new Map<string, () => void>()
 
   constructor() {
     // Use polling instead of WebSocket for better Next.js compatibility
@@ -20,6 +21,9 @@ export class WebSocketService {
 
       // Start polling for this address
       this.startPolling(address, subscriptionId)
+
+      // Placeholder for WebSocket connection
+      this.webSocketConnections.set(subscriptionId, connectWebSocket(address, callback))
 
       return subscriptionId
     } catch (error) {
@@ -68,6 +72,13 @@ export class WebSocketService {
           clearInterval(interval)
           this.pollingIntervals.delete(subscriptionId)
         }
+
+        // Disconnect WebSocket
+        const disconnectWebSocket = this.webSocketConnections.get(subscriptionId)
+        if (disconnectWebSocket) {
+          disconnectWebSocket()
+          this.webSocketConnections.delete(subscriptionId)
+        }
       }
     }
   }
@@ -78,10 +89,30 @@ export class WebSocketService {
       clearInterval(interval)
     }
 
+    // Disconnect all WebSockets
+    for (const disconnect of this.webSocketConnections.values()) {
+      disconnect()
+    }
+
     this.subscriptions.clear()
     this.pollingIntervals.clear()
+    this.webSocketConnections.clear()
   }
 }
 
 // Singleton instance
 export const webSocketService = new WebSocketService()
+
+export const connectWebSocket = (address: string, onUpdate: (data: any) => void) => {
+  console.log(`Connecting WebSocket for address: ${address}`)
+  // In a real application, you would establish a WebSocket connection here
+  // and listen for events related to the address.
+  // Example:
+  // const ws = new WebSocket(`wss://your-websocket-api.com/ws?address=${address}`);
+  // ws.onmessage = (event) => {
+  //     const data = JSON.parse(event.data);
+  //     onUpdate(data);
+  // };
+  // return () => ws.close(); // Return a cleanup function
+  return () => console.log(`Disconnected WebSocket for address: ${address}`)
+}

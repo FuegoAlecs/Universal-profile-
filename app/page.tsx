@@ -1,18 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import ProfileCard from "@/components/ProfileCard"
+import { useRouter } from "next/navigation" // Import useRouter
 import ConnectWallet from "@/components/ConnectWallet"
 import { AnimatePresence, motion } from "framer-motion"
-// Removed direct imports for hooks here as ProfileCard now handles them
 import { Toaster } from "@/components/ui/toaster"
 
 export default function Home() {
   const [address, setAddress] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-
-  // isLoading is now managed within ProfileCard and its sub-components
-  // const isLoading = isProfileLoading || isNftsLoading || isActivityLoading
+  const router = useRouter() // Initialize useRouter
 
   useEffect(() => {
     const checkWalletConnection = async () => {
@@ -22,6 +19,7 @@ export default function Home() {
           if (accounts.length > 0) {
             setAddress(accounts[0])
             setIsConnected(true)
+            router.push(`/profile/${accounts[0]}`) // Redirect to profile page
           } else {
             setAddress(null)
             setIsConnected(false)
@@ -42,9 +40,11 @@ export default function Home() {
         if (accounts.length > 0) {
           setAddress(accounts[0])
           setIsConnected(true)
+          router.push(`/profile/${accounts[0]}`) // Redirect on account change
         } else {
           setAddress(null)
           setIsConnected(false)
+          router.push("/") // Redirect back to home if disconnected
         }
       }
       ;(window as any).ethereum.on("accountsChanged", handleAccountsChanged)
@@ -53,7 +53,7 @@ export default function Home() {
         ;(window as any).ethereum.removeListener("accountsChanged", handleAccountsChanged)
       }
     }
-  }, [])
+  }, [router]) // Add router to dependency array
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white font-sans relative overflow-hidden">
@@ -79,7 +79,6 @@ export default function Home() {
           transition={{ delay: 0.5, duration: 0.8 }}
           className="mb-12"
         >
-          {/* ConnectWallet component handles its own connection logic */}
           <ConnectWallet
             setAddress={setAddress}
             setIsConnected={setIsConnected}
@@ -89,17 +88,7 @@ export default function Home() {
         </motion.div>
 
         <AnimatePresence mode="wait">
-          {isConnected && address ? (
-            <motion.div
-              key="profile"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="w-full max-w-6xl"
-            >
-              <ProfileCard address={address} /> {/* Removed redundant props */}
-            </motion.div>
-          ) : (
+          {!isConnected && ( // Only show connect message if not connected
             <motion.div
               key="connect-message"
               initial={{ opacity: 0, y: 20 }}

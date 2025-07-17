@@ -1,15 +1,25 @@
-import { Alchemy, Network, Utils } from "@alch/alchemy-sdk"
+import { Alchemy, type Network, Utils } from "@alch/alchemy-sdk"
 import type { Nft, AssetTransfersResult } from "@alch/alchemy-sdk" // Import types from Alchemy SDK
 import type { AlchemyNFT, AlchemyActivity, TokenBalance } from "@/types/alchemy"
 import { redis } from "@/lib/redis"
 
-// Configure Alchemy SDK
-const settings = {
-  apiKey: process.env.ALCHEMY_API_KEY, // Use server-side API key
-  network: (process.env.NEXT_PUBLIC_ALCHEMY_NETWORK as Network) || Network.ETH_SEPOLIA, // Default to Sepolia
-}
+let alchemyInstance: Alchemy | null = null
 
-const alchemy = new Alchemy(settings)
+export const getAlchemy = (): Alchemy | null => {
+  if (!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || !process.env.NEXT_PUBLIC_ALCHEMY_NETWORK) {
+    console.error("Alchemy API key or network is not set in environment variables.")
+    return null
+  }
+
+  if (!alchemyInstance) {
+    const config = {
+      apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+      network: process.env.NEXT_PUBLIC_ALCHEMY_NETWORK as Network, // Ensure it's a valid Network enum value
+    }
+    alchemyInstance = new Alchemy(config)
+  }
+  return alchemyInstance
+}
 
 const NFT_CACHE_TTL = 60 * 5 // 5 minutes
 const ACTIVITY_CACHE_TTL = 60 * 2 // 2 minutes
@@ -17,7 +27,8 @@ const TOKEN_BALANCE_CACHE_TTL = 60 * 5 // 5 minutes
 
 export const nftService = {
   async getNfts(address: string): Promise<AlchemyNFT[]> {
-    if (!alchemy.config.apiKey) {
+    const alchemy = getAlchemy()
+    if (!alchemy) {
       console.warn("Alchemy API Key not configured. Using mock NFT data.")
       return [
         {
@@ -25,7 +36,7 @@ export const nftService = {
           tokenId: "1",
           name: "Mock NFT 1",
           description: "This is a mock NFT.",
-          image: "/placeholder.jpg",
+          image: "/placeholder.png",
           collectionName: "Mock Collection",
           tokenType: "ERC721",
           rarity: 0.1,
@@ -61,7 +72,7 @@ export const nftService = {
         rarity: undefined, // Alchemy SDK doesn't provide rarity directly
         floorPrice: undefined, // Alchemy SDK doesn't provide floor price directly
         attributes: (nft.rawMetadata?.attributes as { trait_type: string; value: string }[]) || [],
-        chain: settings.network.split("_")[1] || "Ethereum", // Extract chain name from network
+        chain: alchemy.config.network.split("_")[1] || "Ethereum", // Extract chain name from network
       }))
 
       await redis.setex(cacheKey, NFT_CACHE_TTL, nfts)
@@ -75,7 +86,7 @@ export const nftService = {
           tokenId: "1",
           name: "Mock NFT 1",
           description: "This is a mock NFT.",
-          image: "/placeholder.jpg",
+          image: "/placeholder.png",
           collectionName: "Mock Collection",
           tokenType: "ERC721",
           rarity: 0.1,
@@ -90,7 +101,8 @@ export const nftService = {
 
 export const activityService = {
   async getActivity(address: string): Promise<AlchemyActivity[]> {
-    if (!alchemy.config.apiKey) {
+    const alchemy = getAlchemy()
+    if (!alchemy) {
       console.warn("Alchemy API Key not configured. Using mock activity data.")
       return [
         {
@@ -173,7 +185,8 @@ export const activityService = {
 
 export const tokenService = {
   async getTokenBalances(address: string): Promise<TokenBalance[]> {
-    if (!alchemy.config.apiKey) {
+    const alchemy = getAlchemy()
+    if (!alchemy) {
       console.warn("Alchemy API Key not configured. Using mock token balance data.")
       return [
         {

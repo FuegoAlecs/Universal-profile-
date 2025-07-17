@@ -1,16 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Nft } from "@/types/alchemy"
+import type { AlchemyNFT } from "@/types/alchemy"
 
 export function useAlchemyNftApi(address: string) {
-  const [data, setData] = useState<Nft[] | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [data, setData] = useState<AlchemyNFT[] | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!address) {
       setData(null)
+      setIsLoading(false)
       return
     }
 
@@ -22,11 +23,11 @@ export function useAlchemyNftApi(address: string) {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
-        const nftsData: Nft[] = await response.json()
+        const nftsData: AlchemyNFT[] = await response.json()
         setData(nftsData)
-      } catch (e: any) {
-        setError(e)
-        console.error("Failed to fetch NFTs:", e)
+      } catch (e) {
+        setError(e as Error)
+        setData(null)
       } finally {
         setIsLoading(false)
       }

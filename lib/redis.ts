@@ -6,12 +6,12 @@ class RedisCache {
 
   constructor() {
     // Use Upstash Redis which is serverless-friendly
-    this.isEnabled = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+    this.isEnabled = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
 
     if (this.isEnabled) {
       this.client = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        url: process.env.KV_REST_API_URL!,
+        token: process.env.KV_REST_API_TOKEN!,
       })
     } else {
       console.warn("Redis not configured, using in-memory fallback")
@@ -123,8 +123,8 @@ class InMemoryCache {
 // Initialize Upstash Redis client
 // Environment variables are automatically provided by Vercel for Upstash integration
 const redisClient = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || "http://localhost:8079", // Fallback for local dev
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || "local_token", // Fallback for local dev
+  url: process.env.KV_REST_API_URL || "http://localhost:8079", // Fallback for local dev
+  token: process.env.KV_REST_API_TOKEN || "local_token", // Fallback for local dev
 })
 
 export const redis = new RedisCache()

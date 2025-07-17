@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 
 /**
  * @title ProfileRegistry
@@ -13,6 +14,9 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
  */
 contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
     using ECDSA for bytes32;
+    using Counters for Counters.Counter;
+
+    Counters.Counter private _profileIds;
 
     // Packed struct to minimize storage slots
     struct PackedProfile {
@@ -24,12 +28,23 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
         uint8 socialCount;      // 1 byte (max 255 social links)
     }
 
+    struct Profile {
+        uint256 id;
+        address owner;
+        string name;
+        string bio;
+        string profileImageUri;
+        string socialLinks; // JSON string of social links
+        uint256 createdAt;
+    }
+
     // Events
     event ProfileCreated(uint256 indexed profileId, address indexed owner, string metadataURI);
     event WalletLinked(uint256 indexed profileId, address indexed wallet, uint256 chainId);
     event WalletUnlinked(uint256 indexed profileId, address indexed wallet);
     event SocialLinked(uint256 indexed profileId, string platform, string handle);
     event ZKVerificationUpdated(uint256 indexed profileId, bool verified);
+    event ProfileUpdated(uint256 indexed id, string name, string bio, string profileImageUri, string socialLinks);
 
     // Storage
     mapping(uint256 => PackedProfile) public profiles;
@@ -37,7 +52,9 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
     mapping(uint256 => mapping(uint256 => bool)) public chainWallets; // profileId => chainId => hasWallet
     mapping(uint256 => mapping(string => string)) public socialLinks; // profileId => platform => handle
     mapping(address => uint256) public addressToProfile; // wallet => profileId
-    
+    mapping(address => uint256) private _addressToProfileId;
+    mapping(uint256 => Profile) private _profiles;
+
     // Constants
     uint256 private _currentProfileId;
     uint256 public constant MAX_WALLETS_PER_PROFILE = 10;
@@ -49,8 +66,9 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
 
     mapping(address => uint256) public nonces;
 
-    constructor() 
+    constructor(address initialOwner) 
         ERC721("Universal Profile", "UPROF") 
+        Ownable(initialOwner) 
         EIP712("ProfileRegistry", "1")
     {}
 
@@ -65,9 +83,12 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
         require(msg.value >= PROFILE_CREATION_FEE, "Insufficient fee");
         require(initialWallets.length == chainIds.length, "Array length mismatch");
         require(initialWallets.length <= MAX_WALLETS_PER_PROFILE, "Too many wallets");
+        require(_addressToProfileId[msg.sender] == 0, "Profile already exists for this address");
 
         uint256 profileId = ++_currentProfileId;
-        
+        _profileIds.increment();
+        uint256 newProfileId = _profileIds.current();
+
         // Create packed profile
         profiles[profileId] = PackedProfile({
             owner: msg.sender,
@@ -77,6 +98,16 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
             walletCount: uint8(initialWallets.length),
             socialCount: 0
         });
+
+        // Create full profile
+        Profile storage newProfile = _profiles[newProfileId];
+        newProfile.id = newProfileId;
+        newProfile.owner = msg.sender;
+        newProfile.name = "";
+        newProfile.bio = "";
+        newProfile.profileImageUri = "";
+        newProfile.socialLinks = "";
+        newProfile.createdAt = block.timestamp;
 
         // Mint NFT
         _mint(msg.sender, profileId);
@@ -89,6 +120,8 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
             
             emit WalletLinked(profileId, initialWallets[i], chainIds[i]);
         }
+
+        _addressToProfileId[msg.sender] = newProfileId;
 
         emit ProfileCreated(profileId, msg.sender, metadataURI);
         return profileId;
@@ -272,6 +305,46 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
         
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Withdrawal failed");
+    }
+
+    /**
+     * @dev Update profile information
+     */
+    function updateProfile(string memory _name, string memory _bio, string memory _profileImageUri, string memory _socialLinks) public {
+        uint256 profileId = _addressToProfileId[msg.sender];
+        require(profileId != 0, "Profile does not exist for this address");
+
+        Profile storage existingProfile = _profiles[profileId];
+        existingProfile.name = _name;
+        existingProfile.bio = _bio;
+        existingProfile.profileImageUri = _profileImageUri;
+        existingProfile.socialLinks = _socialLinks;
+
+        emit ProfileUpdated(profileId, _name, _bio, _profileImageUri, _socialLinks);
+    }
+
+    /**
+     * @dev Get profile by address
+     */
+    function getProfileByAddress(address _owner) public view returns (Profile memory) {
+        uint256 profileId = _addressToProfileId[_owner];
+        require(profileId != 0, "Profile does not exist for this address");
+        return _profiles[profileId];
+    }
+
+    /**
+     * @dev Get profile by ID
+     */
+    function getProfileById(uint256 _id) public view returns (Profile memory) {
+        require(_profiles[_id].owner != address(0), "Profile does not exist for this ID");
+        return _profiles[_id];
+    }
+
+    /**
+     * @dev Get profile ID by address
+     */
+    function getProfileIdByAddress(address _owner) public view returns (uint256) {
+        return _addressToProfileId[_owner];
     }
 
     // Modifiers

@@ -1,6 +1,14 @@
 export interface AlchemyProfile {
   address: string
   ensName: string | null
+  profileImageUri: string | null
+  bio: string | null
+  socialLinks: {
+    twitter?: string
+    github?: string
+    // Add more social links as needed
+  }
+  tokenBalances: TokenBalance[]
   ensAvatar: string | null
   zkVerified: boolean
   isSociallyVerified: boolean
@@ -15,42 +23,34 @@ export interface AlchemyProfile {
 export interface AlchemyNFT {
   contract: {
     address: string
-    name: string | null
-    symbol: string | null
   }
   tokenId: string
+  tokenType: string
   name: string | null // Corresponds to Alchemy's 'title'
   description: string | null
-  image: string | null // Corresponds to Alchemy's 'media[0].gateway'
+  image: string // Gateway URL or IPFS URL
   collectionName: string | null // Corresponds to Alchemy's 'contract.name'
-  tokenType: string // e.g., ERC721, ERC1155
-  rarity?: number // Placeholder for rarity, might need external data
-  attributes?: { trait_type: string; value: string }[] // From rawMetadata.attributes
-  floorPrice?: number // Placeholder for floor price, might need external data
-  chain?: string // e.g., "Ethereum", "Polygon"
+  // Add any other relevant fields from Alchemy's NFT object
 }
 
 // Simplified Activity type based on what we need from Alchemy's AssetTransfersResult
 export interface AlchemyActivity {
   hash: string
   from: string
-  to: string | null
-  value: string | null // Value of the transfer, e.g., "0.5 ETH"
-  timestamp: number // Unix timestamp
-  category: string // e.g., "erc20", "erc721", "external"
-  asset: string | null // e.g., "ETH", "USDC", NFT name
-  blockNum: string
-  gasUsed: string | null // Not directly from getAssetTransfers, would need tx receipt
-  gasPrice: string | null // Not directly from getAssetTransfers, would need tx receipt
-  metadata: {
-    blockTimestamp: string // ISO string
-  }
+  to: string
+  value: number | null
+  asset: string | null // e.g., "ETH", "USDC"
+  category: string // e.g., "erc721", "erc20", "external"
+  blockNum: string // Hex string
+  timestamp: number // Unix timestamp (seconds) - will need to be derived from blockNum
+  // Add more fields as needed from Alchemy's AssetTransfer object
 }
 
 export interface TokenBalance {
   contractAddress: string
-  symbol: string
-  balance: string // Formatted balance string (e.g., "1.2345")
-  decimals: number
-  usdValue: number // Mocked USD value for now
+  tokenBalance: number // Formatted balance (e.g., in ETH, not wei)
+  symbol: string | null
+  logo: string | null
+  name: string | null
+  decimals: number | null
 }

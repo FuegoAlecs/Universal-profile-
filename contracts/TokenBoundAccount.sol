@@ -1,159 +1,109 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 
-/**
- * @title TokenBoundAccount
- * @dev ERC-6551 Token Bound Account implementation for Universal Profiles
- */
-contract TokenBoundAccount is ReentrancyGuard {
-    using ECDSA for bytes32;
+// Minimal ERC-6551 implementation for a Token Bound Account
+contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
+    using Address for address payable;
 
-    // Events
-    event Executed(address indexed target, uint256 value, bytes data, bytes result);
-    event TokenReceived(address indexed token, uint256 amount);
-    event NFTReceived(address indexed collection, uint256 tokenId);
+    // The ERC-6551 Registry address that deployed this account
+    address public immutable ERC6551_REGISTRY;
+    // The hash of the salt used to deploy this account
+    bytes32 public immutable SALT;
+    // The chain ID of the chain this account was deployed on
+    uint256 public immutable CHAIN_ID;
+    // The address of the ERC-721 token that owns this account
+    address public immutable TOKEN_CONTRACT;
+    // The ID of the ERC-721 token that owns this account
+    uint256 public immutable TOKEN_ID;
 
-    // Storage
-    uint256 private _state;
-    
-    // ERC-6551 required functions
-    function token() public view returns (uint256 chainId, address tokenContract, uint256 tokenId) {
-        bytes memory footer = new bytes(0x60);
-        
-        assembly {
-            extcodecopy(address(), add(footer, 0x20), 0x4d, 0x60)
-        }
-        
-        return abi.decode(footer, (uint256, address, uint256));
-    }
-
-    function state() external view returns (uint256) {
-        return _state;
-    }
-
-    function isValidSigner(address signer, bytes calldata) external view returns (bytes4) {
-        if (_isValidSigner(signer)) {
-            return IERC1271.isValidSignature.selector;
-        }
-        return 0xffffffff;
-    }
-
-    /**
-     * @dev Execute a transaction from the token bound account
-     */
-    function execute(
-        address target,
+    // Event emitted when a call is executed
+    event TransactionExecuted(
+        address indexed to,
         uint256 value,
-        bytes calldata data
-    ) external payable nonReentrant returns (bytes memory result) {
-        require(_isValidSigner(msg.sender), "Invalid signer");
-        require(target != address(0), "Invalid target");
+        bytes data,
+        bytes result
+    );
 
-        _state++;
-
-        bool success;
-        (success, result) = target.call{value: value}(data);
-        
-        if (!success) {
-            assembly {
-                revert(add(result, 32), mload(result))
-            }
-        }
-
-        emit Executed(target, value, data, result);
+    constructor(
+        bytes32 salt,
+        uint256 chainId,
+        address tokenContract,
+        uint256 tokenId
+    ) payable {
+        ERC6551_REGISTRY = msg.sender; // The registry is the deployer
+        SALT = salt;
+        CHAIN_ID = chainId;
+        TOKEN_CONTRACT = tokenContract;
+        TOKEN_ID = tokenId;
     }
 
-    /**
-     * @dev Batch execute multiple transactions
-     */
-    function executeBatch(
-        address[] calldata targets,
-        uint256[] calldata values,
-        bytes[] calldata data
-    ) external payable nonReentrant returns (bytes[] memory results) {
-        require(_isValidSigner(msg.sender), "Invalid signer");
-        require(targets.length == values.length && targets.length == data.length, "Array length mismatch");
+    // Fallback function to receive Ether
+    receive() external payable {}
 
-        results = new bytes[](targets.length);
-        _state++;
+    // Allows the token owner to execute arbitrary calls
+    function execute(
+        address to,
+        uint256 value,
+        bytes calldata data,
+        uint8 operation
+    ) external returns (bytes memory result) {
+        // Only the token owner can execute calls
+        require(msg.sender == owner(), "Not token owner");
 
-        for (uint256 i = 0; i < targets.length; i++) {
-            require(targets[i] != address(0), "Invalid target");
-            
-            bool success;
-            (success, results[i]) = targets[i].call{value: values[i]}(data[i]);
-            
-            if (!success) {
-                assembly {
-                    revert(add(results, add(32, mul(i, 32))), mload(add(results, mul(i, 32))))
-                }
-            }
+        // Operation types: 0 for call, 1 for delegatecall, 2 for create, 3 for create2
+        // For simplicity, we'll only support direct calls (operation 0)
+        require(operation == 0, "Unsupported operation");
 
-            emit Executed(targets[i], values[i], data[i], results[i]);
-        }
+        (bool success, bytes memory returnData) = to.call{value: value}(data);
+        require(success, string(returnData));
+
+        emit TransactionExecuted(to, value, data, returnData);
+        return returnData;
     }
 
-    /**
-     * @dev Check if an address is a valid signer for this account
-     */
-    function _isValidSigner(address signer) internal view returns (bool) {
-        (uint256 chainId, address tokenContract, uint256 tokenId) = token();
-        
-        if (chainId != block.chainid) {
-            return false;
-        }
-
-        try IERC721(tokenContract).ownerOf(tokenId) returns (address owner) {
-            return signer == owner;
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * @dev Get the owner of the bound token
-     */
+    // Returns the owner of the token that controls this account
     function owner() public view returns (address) {
-        (uint256 chainId, address tokenContract, uint256 tokenId) = token();
-        
-        if (chainId != block.chainid) {
-            return address(0);
-        }
-
-        try IERC721(tokenContract).ownerOf(tokenId) returns (address tokenOwner) {
-            return tokenOwner;
-        } catch {
-            return address(0);
+        // If this account is on the same chain as the token,
+        // the owner is the current owner of the token.
+        if (block.chainid == CHAIN_ID) {
+            try IERC721(TOKEN_CONTRACT).ownerOf(TOKEN_ID) returns (address tokenOwner) {
+                return tokenOwner;
+            } catch {
+                revert("Invalid token contract or token ID");
+            }
+        } else {
+            // If this account is on a different chain,
+            // the owner is the account itself (or a more complex cross-chain logic).
+            // For this example, we'll assume same-chain ownership.
+            return address(this);
         }
     }
 
-    // Receive functions
-    receive() external payable {
-        emit TokenReceived(address(0), msg.value);
-    }
-
+    // ERC-721 Receiver interface
     function onERC721Received(
         address,
         address,
-        uint256 tokenId,
+        uint256,
         bytes calldata
-    ) external returns (bytes4) {
-        emit NFTReceived(msg.sender, tokenId);
+    ) external pure override returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
 
+    // ERC-1155 Receiver interface
     function onERC1155Received(
         address,
         address,
         uint256,
         uint256,
         bytes calldata
-    ) external returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return IERC1155Receiver.onERC1155Received.selector;
     }
 
@@ -163,32 +113,37 @@ contract TokenBoundAccount is ReentrancyGuard {
         uint256[] calldata,
         uint256[] calldata,
         bytes calldata
-    ) external returns (bytes4) {
+    ) external pure override returns (bytes4) {
         return IERC1155Receiver.onERC1155BatchReceived.selector;
     }
 
-    // ERC-165 support
-    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IERC165).interfaceId ||
-               interfaceId == type(IERC721Receiver).interfaceId ||
-               interfaceId == type(IERC1155Receiver).interfaceId;
+    // ERC-1271 isValidSignature for contract-based accounts
+    function isValidSignature(
+        bytes32 _hash,
+        bytes calldata _signature
+    ) external view override returns (bytes4) {
+        // This is a simplified isValidSignature.
+        // In a full implementation, this would verify if the signature
+        // is valid for the current owner of the token.
+        // For now, we'll return 0x1626ba7e if the owner is a valid EOA and signed.
+        // Or, if the owner is a contract, it would delegate to the owner's isValidSignature.
+
+        address currentOwner = owner();
+        if (currentOwner == address(0)) {
+            return 0; // No owner
+        }
+
+        // If the owner is an EOA, check if the signature is valid for that EOA
+        if (currentOwner.code.length == 0) {
+            if (ECDSA.recover(_hash, _signature) == currentOwner) {
+                return IERC1271.isValidSignature.selector;
+            }
+        } else {
+            // If the owner is a contract, delegate to its isValidSignature
+            // This part would require a more complex setup to handle arbitrary contract owners
+            // For simplicity, we'll just return 0 for now if it's a contract owner
+            return 0;
+        }
+        return 0;
     }
-}
-
-// Required interfaces
-interface IERC1271 {
-    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4);
-}
-
-interface IERC165 {
-    function supportsInterface(bytes4 interfaceId) external view returns (bool);
-}
-
-interface IERC721Receiver {
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external returns (bytes4);
-}
-
-interface IERC1155Receiver {
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data) external returns (bytes4);
-    function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external returns (bytes4);
 }

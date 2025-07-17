@@ -1,64 +1,46 @@
-const { ethers } = require("hardhat")
+const hre = require("hardhat")
 
 async function main() {
-  const hre = require("hardhat")
-  const network = hre.network
-  console.log("Deploying Universal Profile contracts...")
+  const [deployer] = await hre.ethers.getSigners()
 
-  // Deploy ProfileRegistry
-  const ProfileRegistry = await ethers.getContractFactory("ProfileRegistry")
-  const profileRegistry = await ProfileRegistry.deploy()
-  await profileRegistry.deployed()
+  console.log("Deploying contracts with the account:", deployer.address)
 
-  console.log("ProfileRegistry deployed to:", profileRegistry.address)
+  const ProfileRegistry = await hre.ethers.getContractFactory("ProfileRegistry")
+  const profileRegistry = await ProfileRegistry.deploy(deployer.address)
 
-  // Deploy TokenBoundAccount implementation
-  const TokenBoundAccount = await ethers.getContractFactory("TokenBoundAccount")
-  const tokenBoundAccount = await TokenBoundAccount.deploy()
-  await tokenBoundAccount.deployed()
+  await profileRegistry.waitForDeployment()
 
-  console.log("TokenBoundAccount deployed to:", tokenBoundAccount.address)
+  console.log("ProfileRegistry deployed to:", profileRegistry.target)
 
-  // Verify contracts on Etherscan
-  if (network.name !== "hardhat") {
-    console.log("Waiting for block confirmations...")
-    await profileRegistry.deployTransaction.wait(6)
-    await tokenBoundAccount.deployTransaction.wait(6)
+  // You would typically deploy an ERC6551 Registry here if you're not using an existing one.
+  // For this example, we'll assume a standard ERC6551 Registry address or mock it.
+  // If you have a specific ERC6551 Registry contract to deploy:
+  // const ERC6551Registry = await hre.ethers.getContractFactory("ERC6551Registry");
+  // const erc6551Registry = await ERC6551Registry.deploy();
+  // await erc6551Registry.waitForDeployment();
+  // console.log("ERC6551Registry deployed to:", erc6551Registry.target);
 
-    console.log("Verifying contracts...")
+  // For now, let's just log a placeholder for the ERC6551 Registry
+  console.log("ERC6551 Registry (placeholder): 0xYourERC6551RegistryAddressHere")
 
-    try {
-      await hre.run("verify:verify", {
-        address: profileRegistry.address,
-        constructorArguments: [],
-      })
-    } catch (e) {
-      console.log("ProfileRegistry verification failed:", e.message)
-    }
-
-    try {
-      await hre.run("verify:verify", {
-        address: tokenBoundAccount.address,
-        constructorArguments: [],
-      })
-    } catch (e) {
-      console.log("TokenBoundAccount verification failed:", e.message)
-    }
-  }
-
-  // Save deployment addresses
+  // Save contract addresses to a file or update .env
+  // For example, you can write them to a JSON file
   const fs = require("fs")
-  const deploymentInfo = {
-    network: network.name,
-    profileRegistry: profileRegistry.address,
-    tokenBoundAccount: tokenBoundAccount.address,
-    deployedAt: new Date().toISOString(),
+  const contractsDir = __dirname + "/../contracts"
+  if (!fs.existsSync(contractsDir)) {
+    fs.mkdirSync(contractsDir)
   }
+  fs.writeFileSync(
+    contractsDir + "/ProfileRegistry.json",
+    JSON.stringify({ address: profileRegistry.target, abi: ProfileRegistry.interface.formatJson() }, undefined, 2),
+  )
+  // If you deployed ERC6551Registry, save its address and ABI too
+  // fs.writeFileSync(
+  //   contractsDir + '/ERC6551Registry.json',
+  //   JSON.stringify({ address: erc6551Registry.target, abi: ERC6551Registry.interface.formatJson() }, undefined, 2)
+  // );
 
-  fs.writeFileSync(`deployments/${network.name}.json`, JSON.stringify(deploymentInfo, null, 2))
-
-  console.log("Deployment complete!")
-  console.log("Deployment info saved to:", `deployments/${network.name}.json`)
+  console.log("Deployment finished. Update your .env with the deployed addresses.")
 }
 
 main()

@@ -1,14 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { ExternalLink, Sparkles } from "lucide-react"
+import NFTDetailModal from "./NFTDetailModal"
 import type { AlchemyNFT } from "@/types/alchemy"
 import { motion } from "framer-motion"
-import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Text3D, Float } from "@react-three/drei"
 
 interface NFTGalleryProps {
   nfts: AlchemyNFT[]
@@ -16,128 +14,71 @@ interface NFTGalleryProps {
   compact?: boolean
 }
 
-function HolographicNFT({ nft, index }: { nft: AlchemyNFT; index: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, rotateY: -15 }}
-      animate={{ opacity: 1, y: 0, rotateY: 0 }}
-      transition={{ delay: index * 0.1, duration: 0.6 }}
-      whileHover={{
-        scale: 1.05,
-        rotateY: 5,
-        transition: { duration: 0.3 },
-      }}
-      className="group"
-    >
-      <Card className="overflow-hidden bg-slate-900/60 backdrop-blur-xl border border-slate-700/50 hover:border-cyan-500/50 transition-all duration-500 shadow-lg hover:shadow-cyan-500/20">
-        <div className="relative aspect-square overflow-hidden">
-          {/* Holographic border effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-transparent to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-          <Image
-            src={nft.image || "/placeholder.svg?height=300&width=300"}
-            alt={nft.name || "NFT"}
-            fill
-            className="object-cover group-hover:scale-110 transition-transform duration-700"
-            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-          />
-
-          {/* Rarity indicator */}
-          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg">
-              <Sparkles className="h-3 w-3 mr-1" />
-              Rare
-            </Badge>
-          </div>
-
-          {/* External link */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <motion.a
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              href={`https://opensea.io/assets/${nft.chain?.toLowerCase() || "ethereum"}/${nft.contract.address}/${nft.tokenId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-slate-900/80 backdrop-blur-sm hover:bg-slate-800/80 p-2 rounded-full shadow-lg border border-slate-700/50"
-            >
-              <ExternalLink className="h-3 w-3 text-cyan-400" />
-            </motion.a>
-          </div>
-
-          {/* Holographic overlay */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        </div>
-
-        <CardContent className="p-4 bg-slate-900/40 backdrop-blur-sm">
-          <h4 className="font-medium text-sm truncate mb-2 text-white">{nft.name || `#${nft.tokenId}`}</h4>
-          <p className="text-xs text-slate-400 truncate mb-3">{nft.contract.name}</p>
-
-          <div className="flex items-center justify-between">
-            <Badge variant="outline" className="text-xs border-slate-600 text-slate-300">
-              {nft.contract.symbol}
-            </Badge>
-            {nft.floorPrice && <span className="text-xs font-medium text-cyan-400">{nft.floorPrice} ETH</span>}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  )
-}
-
 export default function NFTGallery({ nfts, isLoading, compact = false }: NFTGalleryProps) {
+  const [selectedNft, setSelectedNft] = useState<AlchemyNFT | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const handleNftClick = (nft: AlchemyNFT) => {
+    setSelectedNft(nft)
+    setIsModalOpen(true)
+  }
+
+  const gridClasses = compact
+    ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4"
+    : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6"
+
+  const itemClasses = compact ? "h-32 w-32 sm:h-40 sm:w-40" : "h-48 w-48 sm:h-56 sm:w-56"
+
   if (isLoading) {
     return (
-      <div
-        className={`grid gap-6 ${compact ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}`}
-      >
+      <div className={`grid ${gridClasses}`}>
         {Array.from({ length: compact ? 6 : 12 }).map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-          >
-            <Card className="overflow-hidden bg-slate-900/40 backdrop-blur-xl border border-slate-700/50">
-              <Skeleton className="aspect-square w-full bg-slate-800/50" />
-              <CardContent className="p-4">
-                <Skeleton className="h-4 w-full mb-2 bg-slate-800/50" />
-                <Skeleton className="h-3 w-2/3 bg-slate-800/50" />
-              </CardContent>
-            </Card>
-          </motion.div>
+          <Skeleton key={i} className={`rounded-lg ${itemClasses}`} />
         ))}
       </div>
     )
   }
 
-  if (nfts.length === 0) {
-    return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-        <div className="w-24 h-24 mx-auto mb-4 relative">
-          <Canvas>
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
-            <Float speed={2} rotationIntensity={1} floatIntensity={2}>
-              <Text3D font="/fonts/Geist_Bold.json" size={0.5} height={0.1} curveSegments={12}>
-                NFT
-                <meshStandardMaterial color="#06b6d4" />
-              </Text3D>
-            </Float>
-            <OrbitControls enableZoom={false} />
-          </Canvas>
-        </div>
-        <p className="text-slate-400">No NFTs detected in the neural network</p>
-      </motion.div>
-    )
+  if (!nfts || nfts.length === 0) {
+    return <div className="text-center text-slate-400 py-8">No NFTs found for this address.</div>
   }
 
   return (
-    <div
-      className={`grid gap-6 ${compact ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}`}
-    >
-      {nfts.map((nft, index) => (
-        <HolographicNFT key={`${nft.contract.address}-${nft.tokenId}`} nft={nft} index={index} />
-      ))}
-    </div>
+    <>
+      <div className={`grid ${gridClasses}`}>
+        {nfts.map((nft, index) => (
+          <motion.div
+            key={nft.contract.address + nft.tokenId + index}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3, delay: index * 0.05 }}
+            className="flex justify-center"
+          >
+            <Card
+              className={`relative overflow-hidden rounded-lg shadow-lg cursor-pointer group bg-slate-800/50 border-slate-700/50 hover:border-cyan-500 transition-all duration-300 ${itemClasses}`}
+              onClick={() => handleNftClick(nft)}
+            >
+              <CardContent className="p-0 flex items-center justify-center h-full w-full">
+                <Image
+                  src={nft.image || "/placeholder.png"}
+                  alt={nft.name || "NFT Image"}
+                  width={compact ? 160 : 224}
+                  height={compact ? 160 : 224}
+                  className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.png"
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+                  <p className="text-white text-sm font-semibold truncate w-full">{nft.name || "Untitled NFT"}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {selectedNft && <NFTDetailModal nft={selectedNft} isOpen={isModalOpen} onOpenChange={setIsModalOpen} />}
+    </>
   )
 }

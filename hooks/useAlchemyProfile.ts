@@ -5,12 +5,13 @@ import type { AlchemyProfile } from "@/types/alchemy"
 
 export function useAlchemyProfile(address: string) {
   const [data, setData] = useState<AlchemyProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!address) {
       setData(null)
+      setIsLoading(false)
       return
     }
 
@@ -24,9 +25,9 @@ export function useAlchemyProfile(address: string) {
         }
         const profileData: AlchemyProfile = await response.json()
         setData(profileData)
-      } catch (e: any) {
-        setError(e)
-        console.error("Failed to fetch profile:", e)
+      } catch (e) {
+        setError(e as Error)
+        setData(null)
       } finally {
         setIsLoading(false)
       }

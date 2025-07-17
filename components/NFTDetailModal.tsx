@@ -1,107 +1,70 @@
 "use client"
 
+import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { ExternalLink, Sparkles } from "lucide-react"
-import Image from "next/image"
-import type { AlchemyNFT } from "@/types/alchemy" // Updated import
-import { motion } from "framer-motion"
+import { formatAddress } from "@/lib/utils"
+import type { AlchemyNFT } from "@/types/alchemy"
 
 interface NFTDetailModalProps {
   nft: AlchemyNFT
-  onClose: () => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-export default function NFTDetailModal({ nft, onClose }: NFTDetailModalProps) {
+export default function NFTDetailModal({ nft, isOpen, onOpenChange }: NFTDetailModalProps) {
+  if (!nft) return null
+
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 text-white p-6 rounded-lg shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 text-white">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-cyan-400">{nft.name || `NFT #${nft.tokenId}`}</DialogTitle>
+          <DialogTitle className="text-cyan-400 text-2xl font-bold break-words">
+            {nft.name || "Untitled NFT"}
+          </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Details for {nft.collectionName || nft.contract.name}
+            {nft.collectionName && `From: ${nft.collectionName}`}
           </DialogDescription>
         </DialogHeader>
-        <Separator className="my-4 bg-slate-700" />
-        <div className="grid md:grid-cols-2 gap-6">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="relative aspect-square rounded-lg overflow-hidden border border-slate-700/50 shadow-lg"
-          >
+        <div className="grid gap-4 py-4">
+          <div className="relative w-full h-64 sm:h-80 rounded-lg overflow-hidden bg-slate-800 flex items-center justify-center">
             <Image
-              src={nft.image || "/placeholder.svg?height=500&width=500"}
+              src={nft.image || "/placeholder.png"}
               alt={nft.name || "NFT Image"}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
+              layout="fill"
+              objectFit="contain"
+              className="transition-transform duration-300 hover:scale-105"
+              onError={(e) => {
+                e.currentTarget.src = "/placeholder.png"
+              }}
             />
-            {nft.rarity && (
-              <Badge className="absolute top-2 left-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg">
-                <Sparkles className="h-4 w-4 mr-1" />
-                {nft.rarity}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {nft.tokenType && (
+              <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30">
+                {nft.tokenType}
               </Badge>
             )}
-          </motion.div>
-          <div className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-slate-300">Description</h4>
-              <p className="text-sm text-slate-400 max-h-32 overflow-y-auto pr-2">
-                {nft.description || "No description available."}
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-slate-300">Contract Details</h4>
-              <p className="text-sm text-slate-400">
-                **Collection:** {nft.collectionName || nft.contract.name}
-                <br />
-                **Token ID:** {nft.tokenId}
-                <br />
-                **Contract Address:**{" "}
-                <a
-                  href={`https://etherscan.io/address/${nft.contract.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-cyan-400 hover:underline flex items-center gap-1"
-                >
-                  {nft.contract.address?.slice(0, 6)}...{nft.contract.address?.slice(-4)}{" "}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-                <br />
-                **Chain:** {nft.chain || "Ethereum"}
-              </p>
-            </div>
-            {nft.floorPrice && (
-              <div>
-                <h4 className="font-semibold text-slate-300">Floor Price</h4>
-                <p className="text-lg font-bold text-cyan-400">{nft.floorPrice} ETH</p>
-              </div>
+            {nft.contract.address && (
+              <Badge variant="secondary" className="bg-slate-700/50 text-slate-300 border-slate-600/50">
+                Contract: {formatAddress(nft.contract.address)}
+              </Badge>
             )}
-            {nft.attributes && nft.attributes.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-slate-300 mb-2">Attributes</h4>
-                <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-2">
-                  {nft.attributes.map((attr, index) => (
-                    <Badge key={index} variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">
-                      {attr.trait_type}: {attr.value}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+            {nft.tokenId && (
+              <Badge variant="secondary" className="bg-slate-700/50 text-slate-300 border-slate-600/50">
+                Token ID: {nft.tokenId}
+              </Badge>
             )}
-            <div className="flex justify-end">
-              <a
-                href={`https://opensea.io/assets/${nft.chain?.toLowerCase() || "ethereum"}/${nft.contract.address}/${nft.tokenId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-              >
-                View on OpenSea <ExternalLink className="h-4 w-4" />
-              </a>
-            </div>
           </div>
+          <Separator className="my-2 bg-slate-700/50" />
+          <div>
+            <h4 className="font-semibold text-lg mb-2 text-cyan-300">Description</h4>
+            <p className="text-slate-300 text-sm max-h-40 overflow-y-auto custom-scrollbar">
+              {nft.description || "No description available for this NFT."}
+            </p>
+          </div>
+          {/* You can add more details here, e.g., attributes, external links */}
         </div>
       </DialogContent>
     </Dialog>
