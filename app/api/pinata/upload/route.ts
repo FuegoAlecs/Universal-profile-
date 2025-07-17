@@ -15,12 +15,9 @@ if (!pinataApiKey || !pinataSecretApiKey) {
 
 const pinata = new PinataClient({ pinataApiKey, pinataSecretApiKey })
 
-// Disable body parsing for this route
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
+export const api = {
+  bodyParser: false,
+};
 
 // Helper to convert buffer to stream
 function bufferToStream(buffer: Buffer): Readable {
