@@ -1,75 +1,176 @@
 "use client"
 
+import type React from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import type { AlchemyProfile } from "@/types/alchemy"
-import { Github, Twitter } from "lucide-react"
-import { motion } from "framer-motion"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { useState, useEffect } from "react"
+import { Twitter, Github, Globe } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { profileService } from "@/lib/profile-service" // Assuming a profile service for social links
 
 interface SocialLinksProps {
-  profile: AlchemyProfile | null
+  address: string
 }
 
-export default function SocialLinks({ profile }: SocialLinksProps) {
-  const isLoading = !profile
+interface SocialLink {
+  platform: string
+  handle: string
+  icon: React.ElementType
+  urlPrefix: string
+}
 
-  if (isLoading) {
-    return (
-      <Card className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 text-white">
-        <CardHeader>
-          <CardTitle className="text-cyan-400">Social Links</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-24" />
-        </CardContent>
-      </Card>
-    )
+const socialPlatforms: SocialLink[] = [
+  { platform: "twitter", handle: "web3user", icon: Twitter, urlPrefix: "https://twitter.com/" },
+  { platform: "github", handle: "web3dev", icon: Github, urlPrefix: "https://github.com/" },
+  { platform: "website", handle: "myprofile.com", icon: Globe, urlPrefix: "https://" },
+]
+
+export default function SocialLinks({ address }: SocialLinksProps) {
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(socialPlatforms)
+  const [editingPlatform, setEditingPlatform] = useState<string | null>(null)
+  const [newHandle, setNewHandle] = useState<string>("")
+  const { toast } = useToast()
+
+  // In a real app, you'd fetch actual social links from your backend/contract
+  useEffect(() => {
+    // Example: Fetch social links from profileService
+    // profileService.getSocialLinks(address).then(links => {
+    //   const updatedLinks = socialPlatforms.map(platform => {
+    //     const found = links.find(l => l.platform === platform.platform);
+    //     return found ? { ...platform, handle: found.handle } : platform;
+    //   });
+    //   setSocialLinks(updatedLinks);
+    // });
+  }, [address])
+
+  const handleEditClick = (platform: string, currentHandle: string) => {
+    setEditingPlatform(platform)
+    setNewHandle(currentHandle)
   }
 
-  const socialLinks = profile?.socialLinks || {}
-  const hasSocialLinks = Object.values(socialLinks).some((link) => link)
+  const handleSave = async () => {
+    if (!editingPlatform) return
+
+    try {
+      // Simulate API call to update social link
+      const success = await profileService.updateProfileSocialLink(address, editingPlatform, newHandle)
+
+      if (success) {
+        setSocialLinks((prevLinks) =>
+          prevLinks.map((link) => (link.platform === editingPlatform ? { ...link, handle: newHandle } : link)),
+        )
+        toast({
+          title: "Social Link Updated",
+          description: `${editingPlatform} handle saved successfully.`,
+        })
+      } else {
+        toast({
+          title: "Update Failed",
+          description: `Could not update ${editingPlatform} handle.`,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error saving social link:", error)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while saving.",
+        variant: "destructive",
+      })
+    } finally {
+      setEditingPlatform(null)
+      setNewHandle("")
+    }
+  }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-      <Card className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 text-white">
-        <CardHeader>
-          <CardTitle className="text-cyan-400">Social Links</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-          {hasSocialLinks ? (
-            <>
-              {socialLinks.twitter && (
-                <Button
-                  asChild
-                  variant="outline"
-                  className="bg-slate-700/50 text-slate-200 border-slate-600/50 hover:bg-slate-600/50 hover:border-cyan-500"
+    <div className="bg-slate-900/50 border-slate-700/50 p-4">
+      <div className="text-xl text-cyan-400 mb-4">Social Links</div>
+      <div className="space-y-4">
+        {socialLinks.map((link) => (
+          <div key={link.platform} className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <link.icon className="h-5 w-5 text-slate-400" />
+              <span className="text-slate-300 capitalize">{link.platform}:</span>
+              {link.handle ? (
+                <a
+                  href={`${link.urlPrefix}${link.handle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:underline"
                 >
-                  <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer">
-                    <Twitter className="mr-2 h-4 w-4" /> Twitter
-                  </a>
-                </Button>
+                  {link.handle}
+                </a>
+              ) : (
+                <span className="text-slate-500 italic">Not linked</span>
               )}
-              {socialLinks.github && (
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
                 <Button
-                  asChild
                   variant="outline"
-                  className="bg-slate-700/50 text-slate-200 border-slate-600/50 hover:bg-slate-600/50 hover:border-cyan-500"
+                  size="sm"
+                  className="text-slate-300 hover:text-white border-slate-700 hover:border-cyan-500 transition-colors duration-300 bg-transparent"
+                  onClick={() => handleEditClick(link.platform, link.handle)}
                 >
-                  <a href={socialLinks.github} target="_blank" rel="noopener noreferrer">
-                    <Github className="mr-2 h-4 w-4" /> GitHub
-                  </a>
+                  {link.handle ? "Edit" : "Add"}
                 </Button>
-              )}
-              {/* Add more social links here as needed */}
-            </>
-          ) : (
-            <p className="text-slate-400">No social links available.</p>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 text-white">
+                <DialogHeader>
+                  <DialogTitle className="text-cyan-400">
+                    {editingPlatform ? `Edit ${editingPlatform} Handle` : "Add Social Link"}
+                  </DialogTitle>
+                  <DialogDescription className="text-slate-400">
+                    Update your social media handle for {editingPlatform}.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="handle" className="text-right text-slate-300">
+                      Handle
+                    </Label>
+                    <Input
+                      id="handle"
+                      value={newHandle}
+                      onChange={(e) => setNewHandle(e.target.value)}
+                      className="col-span-3 bg-slate-800/50 border-slate-700 text-slate-200"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSave}
+                    className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white"
+                  >
+                    Save changes
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        ))}
+      </div>
+      <div className="flex space-x-4 mt-4">
+        <Button variant="outline" size="icon" aria-label="Twitter">
+          <Twitter className="h-5 w-5" />
+        </Button>
+        <Button variant="outline" size="icon" aria-label="GitHub">
+          <Github className="h-5 w-5" />
+        </Button>
+        <Button variant="outline" size="icon" aria-label="Website">
+          <Globe className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
   )
 }

@@ -1,59 +1,22 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation" // Import useRouter
+import { useEffect } from "react"
+import { useAccount } from "wagmi"
+import { useRouter } from "next/navigation"
 import ConnectWallet from "@/components/ConnectWallet"
-import { AnimatePresence, motion } from "framer-motion"
+import ProfileCard from "@/components/ProfileCard"
+import { motion } from "framer-motion"
 import { Toaster } from "@/components/ui/toaster"
 
-export default function Home() {
-  const [address, setAddress] = useState<string | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
-  const router = useRouter() // Initialize useRouter
+export default function HomePage() {
+  const { address, isConnected } = useAccount()
+  const router = useRouter()
 
   useEffect(() => {
-    const checkWalletConnection = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts = await (window as any).ethereum.request({ method: "eth_accounts" })
-          if (accounts.length > 0) {
-            setAddress(accounts[0])
-            setIsConnected(true)
-            router.push(`/profile/${accounts[0]}`) // Redirect to profile page
-          } else {
-            setAddress(null)
-            setIsConnected(false)
-          }
-        } catch (error) {
-          console.error("Error checking wallet connection:", error)
-          setAddress(null)
-          setIsConnected(false)
-        }
-      }
+    if (isConnected && address) {
+      router.push(`/profile/${address}`)
     }
-
-    checkWalletConnection()
-
-    // Listen for account changes
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handleAccountsChanged = (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setAddress(accounts[0])
-          setIsConnected(true)
-          router.push(`/profile/${accounts[0]}`) // Redirect on account change
-        } else {
-          setAddress(null)
-          setIsConnected(false)
-          router.push("/") // Redirect back to home if disconnected
-        }
-      }
-      ;(window as any).ethereum.on("accountsChanged", handleAccountsChanged)
-
-      return () => {
-        ;(window as any).ethereum.removeListener("accountsChanged", handleAccountsChanged)
-      }
-    }
-  }, [router]) // Add router to dependency array
+  }, [isConnected, address, router])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white font-sans relative overflow-hidden">
@@ -63,44 +26,20 @@ export default function Home() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(100,200,255,0.1)_0%,transparent_70%)] animate-pulse-slow" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <motion.h1
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-600 mb-8 text-center drop-shadow-lg"
-        >
-          Universal Profile Card
-        </motion.h1>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="mb-12"
-        >
-          <ConnectWallet
-            setAddress={setAddress}
-            setIsConnected={setIsConnected}
-            isConnected={isConnected}
-            address={address}
-          />
-        </motion.div>
-
-        <AnimatePresence mode="wait">
-          {!isConnected && ( // Only show connect message if not connected
-            <motion.div
-              key="connect-message"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1, duration: 0.8 }}
-              className="text-center text-slate-400 text-lg"
-            >
-              Connect your wallet to view your Universal Profile.
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4 md:p-24">
+        {isConnected && address ? (
+          <ProfileCard address={address} />
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="mb-12"
+          >
+            <ConnectWallet />
+          </motion.div>
+        )}
+      </main>
       <Toaster />
     </div>
   )

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { tokenService } from "@/lib/alchemy"
+import { getAlchemyTokenBalances } from "@/lib/alchemy"
 
 export async function GET(request: NextRequest, { params }: { params: { address: string } }) {
   const { address } = params
@@ -9,10 +9,10 @@ export async function GET(request: NextRequest, { params }: { params: { address:
   }
 
   try {
-    const balances = await tokenService.getTokenBalances(address)
-    return NextResponse.json(balances)
+    const balances = await getAlchemyTokenBalances(address)
+    return NextResponse.json({ balances })
   } catch (error) {
-    console.error("Error fetching token balances:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error in Alchemy balances API:", error)
+    return NextResponse.json({ error: "Failed to fetch token balances" }, { status: 500 })
   }
 }

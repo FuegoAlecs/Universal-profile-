@@ -45,6 +45,8 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
     event SocialLinked(uint256 indexed profileId, string platform, string handle);
     event ZKVerificationUpdated(uint256 indexed profileId, bool verified);
     event ProfileUpdated(uint256 indexed id, string name, string bio, string profileImageUri, string socialLinks);
+    event ProfileRegistered(address indexed owner, string name, string bio, string profileImageUri);
+    event ProfileUpdated(address indexed owner, string name, string bio, string profileImageUri);
 
     // Storage
     mapping(uint256 => PackedProfile) public profiles;
@@ -356,5 +358,59 @@ contract ProfileRegistry is ERC721, Ownable, ReentrancyGuard, EIP712 {
     // Override required by Solidity
     function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    // New functions for profile registration and update
+    function registerProfile(string memory _name, string memory _bio, string memory _profileImageUri) public {
+        require(_addressToProfileId[msg.sender] == 0, "Profile already registered");
+        uint256 profileId = ++_currentProfileId;
+        _profileIds.increment();
+        uint256 newProfileId = _profileIds.current();
+
+        // Create packed profile
+        profiles[profileId] = PackedProfile({
+            owner: msg.sender,
+            createdAt: uint96(block.timestamp),
+            metadataURI: "",
+            zkVerified: false,
+            walletCount: 0,
+            socialCount: 0
+        });
+
+        // Create full profile
+        Profile storage newProfile = _profiles[newProfileId];
+        newProfile.id = newProfileId;
+        newProfile.owner = msg.sender;
+        newProfile.name = _name;
+        newProfile.bio = _bio;
+        newProfile.profileImageUri = _profileImageUri;
+        newProfile.socialLinks = "";
+        newProfile.createdAt = block.timestamp;
+
+        // Mint NFT
+        _mint(msg.sender, profileId);
+
+        _addressToProfileId[msg.sender] = newProfileId;
+
+        emit ProfileRegistered(msg.sender, _name, _bio, _profileImageUri);
+    }
+
+    function updateProfile(string memory _name, string memory _bio, string memory _profileImageUri) public {
+        uint256 profileId = _addressToProfileId[msg.sender];
+        require(profileId != 0, "Profile not registered");
+
+        Profile storage existingProfile = _profiles[profileId];
+        existingProfile.name = _name;
+        existingProfile.bio = _bio;
+        existingProfile.profileImageUri = _profileImageUri;
+
+        emit ProfileUpdated(msg.sender, _name, _bio, _profileImageUri);
+    }
+
+    function getProfile(address _owner) public view returns (string memory, string memory, string memory, bool) {
+        uint256 profileId = _addressToProfileId[_owner];
+        require(profileId != 0, "Profile does not exist for this address");
+        Profile storage profile = _profiles[profileId];
+        return (profile.name, profile.bio, profile.profileImageUri, profile.exists);
     }
 }

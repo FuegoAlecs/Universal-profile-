@@ -1,42 +1,41 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { TokenBalance } from "@/types/alchemy"
+import { useState, useEffect, useCallback } from "react"
+import type { AlchemyTokenBalance } from "@/types/alchemy"
 
-export function useAlchemyTokenBalances(address: string) {
-  const [data, setData] = useState<TokenBalance[] | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+export function useAlchemyTokenBalances(address: string | undefined) {
+  const [balances, setBalances] = useState<AlchemyTokenBalance[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchBalances = useCallback(async () => {
     if (!address) {
-      setData(null)
+      setBalances([])
+      setLoading(false)
+      setError(null)
       return
     }
 
-    const fetchBalances = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`/api/alchemy/balances/${address}`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const balancesData: TokenBalance[] = await response.json()
-        setData(balancesData)
-      } catch (e: any) {
-        setError(e)
-        console.error("Failed to fetch token balances:", e)
-      } finally {
-        setIsLoading(false)
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/alchemy/balances/${address}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
+      const data: { balances: AlchemyTokenBalance[] } = await response.json()
+      setBalances(data.balances)
+    } catch (e: any) {
+      setError(e.message || "Failed to fetch token balances")
+      console.error("Error fetching Alchemy token balances:", e)
+    } finally {
+      setLoading(false)
     }
-
-    fetchBalances()
-    const interval = setInterval(fetchBalances, 60000) // Poll every 60 seconds for updates
-
-    return () => clearInterval(interval) // Cleanup on unmount
   }, [address])
 
-  return { data, isLoading, error }
+  useEffect(() => {
+    fetchBalances()
+  }, [fetchBalances])
+
+  return { balances, loading, error, refetch: fetchBalances }
 }

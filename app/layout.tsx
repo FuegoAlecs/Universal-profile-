@@ -1,17 +1,25 @@
 import type React from "react"
-import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+// Removed direct import of RainbowKit styles here
+import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit"
+import { WagmiProvider } from "wagmi"
+import { mainnet, sepolia } from "wagmi/chains"
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
+import { ViewTransitions } from "next-view-transitions"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Universal Profile Card",
-  description: "Your decentralized identity on the blockchain",
-    generator: 'v0.dev'
-}
+const config = getDefaultConfig({
+  appName: "Universal Profile",
+  projectId: "YOUR_WALLETCONNECT_PROJECT_ID", // Replace with your WalletConnect Project ID
+  chains: [mainnet, sepolia],
+  ssr: true,
+})
+
+const queryClient = new QueryClient()
 
 export default function RootLayout({
   children,
@@ -19,13 +27,25 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster />
-        </ThemeProvider>
-      </body>
-    </html>
+    <ViewTransitions>
+      <html lang="en" suppressHydrationWarning>
+        <body className={inter.className}>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            <WagmiProvider config={config}>
+              <QueryClientProvider client={queryClient}>
+                <RainbowKitProvider>
+                  {children}
+                  <Toaster />
+                </RainbowKitProvider>
+              </QueryClientProvider>
+            </WagmiProvider>
+          </ThemeProvider>
+        </body>
+      </html>
+    </ViewTransitions>
   )
 }
+
+export const metadata = {
+      generator: 'v0.dev'
+    };

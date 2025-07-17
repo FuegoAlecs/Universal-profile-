@@ -1,40 +1,41 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { AlchemyProfile } from "@/types/alchemy"
 
-export function useAlchemyProfile(address: string) {
-  const [data, setData] = useState<AlchemyProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+export function useAlchemyProfile(address: string | undefined) {
+  const [profile, setProfile] = useState<AlchemyProfile | null>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchProfile = useCallback(async () => {
     if (!address) {
-      setData(null)
-      setIsLoading(false)
+      setProfile(null)
+      setLoading(false)
+      setError(null)
       return
     }
 
-    const fetchProfile = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`/api/alchemy/profile/${address}`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const profileData: AlchemyProfile = await response.json()
-        setData(profileData)
-      } catch (e) {
-        setError(e as Error)
-        setData(null)
-      } finally {
-        setIsLoading(false)
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/alchemy/profile/${address}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
+      const data: { profile: AlchemyProfile } = await response.json()
+      setProfile(data.profile)
+    } catch (e: any) {
+      setError(e.message || "Failed to fetch profile")
+      console.error("Error fetching Alchemy profile:", e)
+    } finally {
+      setLoading(false)
     }
-
-    fetchProfile()
   }, [address])
 
-  return { data, isLoading, error }
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
+
+  return { profile, loading, error, refetch: fetchProfile }
 }

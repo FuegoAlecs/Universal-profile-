@@ -1,149 +1,67 @@
+// This file would contain Redis client-side logic, e.g., for caching.
+// For now, it's a placeholder as Redis integration is not yet implemented.
+
+// In a real Next.js app, you'd typically use a server-side Redis client
+// like 'ioredis' or '@upstash/redis' in API routes or server components.
+
 import { Redis } from "@upstash/redis"
 
-class RedisCache {
-  private client: Redis
-  private isEnabled: boolean
-
-  constructor() {
-    // Use Upstash Redis which is serverless-friendly
-    this.isEnabled = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
-
-    if (this.isEnabled) {
-      this.client = new Redis({
-        url: process.env.KV_REST_API_URL!,
-        token: process.env.KV_REST_API_TOKEN!,
-      })
-    } else {
-      console.warn("Redis not configured, using in-memory fallback")
-      // Fallback to in-memory cache for development
-      this.client = new InMemoryCache() as any
-    }
-  }
-
-  async get<T>(key: string): Promise<T | null> {
-    if (!this.isEnabled) {
-      return (this.client as any).get(key)
-    }
-
-    try {
-      const data = await this.client.get(key)
-      return data as T
-    } catch (error) {
-      console.error("Redis get error:", error)
-      return null
-    }
-  }
-
-  async set(key: string, value: any, ttlSeconds?: number): Promise<boolean> {
-    if (!this.isEnabled) {
-      return (this.client as any).set(key, value, ttlSeconds)
-    }
-
-    try {
-      if (ttlSeconds) {
-        await this.client.setex(key, ttlSeconds, JSON.stringify(value))
-      } else {
-        await this.client.set(key, JSON.stringify(value))
-      }
-      return true
-    } catch (error) {
-      console.error("Redis set error:", error)
-      return false
-    }
-  }
-
-  async del(key: string): Promise<boolean> {
-    if (!this.isEnabled) {
-      return (this.client as any).del(key)
-    }
-
-    try {
-      await this.client.del(key)
-      return true
-    } catch (error) {
-      console.error("Redis del error:", error)
-      return false
-    }
-  }
-
-  async invalidatePattern(pattern: string): Promise<void> {
-    if (!this.isEnabled) {
-      return (this.client as any).invalidatePattern(pattern)
-    }
-
-    try {
-      // Upstash doesn't support KEYS command, so we'll use a different approach
-      // For now, we'll just delete specific known keys
-      console.warn("Pattern invalidation not fully supported with Upstash, consider manual cache keys")
-    } catch (error) {
-      console.error("Redis invalidate pattern error:", error)
-    }
-  }
-}
-
-// In-memory fallback cache for development
-class InMemoryCache {
-  private cache = new Map<string, { value: any; expires?: number }>()
-
-  async get<T>(key: string): Promise<T | null> {
-    const item = this.cache.get(key)
-    if (!item) return null
-
-    if (item.expires && Date.now() > item.expires) {
-      this.cache.delete(key)
-      return null
-    }
-
-    return typeof item.value === "string" ? JSON.parse(item.value) : item.value
-  }
-
-  async set(key: string, value: any, ttlSeconds?: number): Promise<boolean> {
-    const expires = ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined
-    this.cache.set(key, {
-      value: typeof value === "object" ? JSON.stringify(value) : value,
-      expires,
-    })
-    return true
-  }
-
-  async del(key: string): Promise<boolean> {
-    return this.cache.delete(key)
-  }
-
-  async invalidatePattern(pattern: string): Promise<void> {
-    const regex = new RegExp(pattern.replace("*", ".*"))
-    for (const key of this.cache.keys()) {
-      if (regex.test(key)) {
-        this.cache.delete(key)
-      }
-    }
-  }
-}
-
 // Initialize Upstash Redis client
-// Environment variables are automatically provided by Vercel for Upstash integration
-const redisClient = new Redis({
-  url: process.env.KV_REST_API_URL || "http://localhost:8079", // Fallback for local dev
-  token: process.env.KV_REST_API_TOKEN || "local_token", // Fallback for local dev
+export const redis = new Redis({
+  url: process.env.KV_REST_API_URL || "",
+  token: process.env.KV_REST_API_TOKEN || "",
 })
 
-export const redis = new RedisCache()
+// Example (conceptual) for a server-side Redis client:
+// import { Redis } from '@upstash/redis';
 
-// Cache TTL constants (in seconds)
-export const CACHE_TTL = {
-  ENS_DATA: 15 * 60, // 15 minutes
-  NFT_DATA: 5 * 60, // 5 minutes
-  PROFILE_DATA: 10 * 60, // 10 minutes
-  ACTIVITY_DATA: 2 * 60, // 2 minutes
-  SOCIAL_DATA: 30 * 60, // 30 minutes
-} as const
+// export const redis = new Redis({
+//   url: process.env.UPSTASH_REDIS_REST_URL!,
+//   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+// });
 
-// You can add more Redis-related utility functions here if needed
-// For example, a function to clear cache for a specific key pattern
-export async function clearCache(pattern: string) {
-  const keys = await redisClient.keys(pattern)
-  if (keys.length > 0) {
-    await redisClient.del(...keys)
-    console.log(`Cleared ${keys.length} keys matching pattern: ${pattern}`)
+// For client-side, you wouldn't directly interact with Redis.
+// Instead, you'd have API routes that interact with Redis.
+
+export class RedisService {
+  // This class is purely conceptual for client-side representation.
+  // Actual Redis operations would happen on the server.
+
+  async get(key: string): Promise<string | null> {
+    console.log(`[RedisService] Attempting to get key: ${key}`)
+    // Simulate API call to a serverless function that fetches from Redis
+    // const response = await fetch(`/api/redis/get?key=${key}`);
+    // if (response.ok) {
+    //   const data = await response.json();
+    //   return data.value;
+    // }
+    return null
+  }
+
+  async set(key: string, value: string, ex?: number): Promise<"OK" | null> {
+    console.log(`[RedisService] Attempting to set key: ${key}, value: ${value}, expiry: ${ex}`)
+    // Simulate API call to a serverless function that sets to Redis
+    // const response = await fetch(`/api/redis/set`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ key, value, ex }),
+    // });
+    // if (response.ok) {
+    //   return "OK";
+    // }
+    return null
+  }
+
+  async del(key: string): Promise<number> {
+    console.log(`[RedisService] Attempting to delete key: ${key}`)
+    // Simulate API call to a serverless function that deletes from Redis
+    // const response = await fetch(`/api/redis/del?key=${key}`);
+    // if (response.ok) {
+    //   const data = await response.json();
+    //   return data.deletedCount;
+    // }
+    return 0
   }
 }
+
+export const redisService = new RedisService()

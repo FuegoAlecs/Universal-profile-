@@ -18,7 +18,7 @@ const InputOTP = React.forwardRef<React.ElementRef<typeof OTPInput>, OTPInputPro
 )
 InputOTP.displayName = "InputOTP"
 
-const InputOTPGroup = React.forwardRef<React.ElementRef<"div">, React.HTMLAttributes<HTMLDivElement>>(
+const InputOTPGroup = React.forwardRef<React.ElementRef<"div">, React.ComponentPropsWithoutRef<"div">>(
   ({ className, ...props }, ref) => <div ref={ref} className={cn("flex items-center", className)} {...props} />,
 )
 InputOTPGroup.displayName = "InputOTPGroup"
@@ -31,9 +31,8 @@ const InputOTPSlot = React.forwardRef<
     ref={ref}
     index={index}
     className={cn(
-      "relative flex h-10 w-10 items-center justify-center border border-input text-sm transition-all rounded-md",
-      "focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
-      "data-[slot=current]:border-primary data-[slot=current]:text-primary",
+      "relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md",
+      "focus-within:z-10 focus-within:ring-1 focus-within:ring-ring",
       className,
     )}
     {...props}
@@ -41,7 +40,7 @@ const InputOTPSlot = React.forwardRef<
 ))
 InputOTPSlot.displayName = "InputOTPSlot"
 
-const InputOTPSeparator = React.forwardRef<React.ElementRef<"div">, React.HTMLAttributes<HTMLDivElement>>(
+const InputOTPSeparator = React.forwardRef<React.ElementRef<"div">, React.ComponentPropsWithoutRef<"div">>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex items-center justify-center", className)} {...props}>
       <Minus />

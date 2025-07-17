@@ -1,42 +1,38 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { toPng } from "html-to-image"
-import QRCode from "qrcode.react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Copy, Download, Share2, QrCode, Twitter, Loader2, Check } from "lucide-react"
+import { Share2, Download, Copy, Twitter } from "lucide-react"
+import { toPng } from "html-to-image"
+import QRCode from "qrcode.react"
 import { useToast } from "@/components/ui/use-toast"
+import { mintProfileNFT } from "@/lib/contract-service"
+import { useAccount } from "wagmi"
 
 interface ShareProfileCardProps {
   profileCardRef: React.RefObject<HTMLDivElement>
-  profileUrl: string
   address: string
 }
 
-export default function ShareProfileCard({ profileCardRef, profileUrl, address }: ShareProfileCardProps) {
-  const { toast } = useToast()
-  const [isUploading, setIsUploading] = useState(false)
+export function ShareProfileCard({ profileCardRef, address }: ShareProfileCardProps) {
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+  const [isMinting, setIsMinting] = useState(false)
   const [ipfsHash, setIpfsHash] = useState<string | null>(null)
-  const [isCopied, setIsCopied] = useState(false)
+  const { toast } = useToast()
+  const { address: connectedAddress } = useAccount()
+
+  const profileUrl = typeof window !== "undefined" ? `${window.location.origin}/profile/${address}` : ""
 
   const handleDownloadImage = async () => {
     if (profileCardRef.current) {
       try {
         const dataUrl = await toPng(profileCardRef.current, { cacheBust: true })
         const link = document.createElement("a")
-        link.download = `universal-profile-${address.substring(0, 8)}.png`
+        link.download = `profile-card-${address}.png`
         link.href = dataUrl
         link.click()
         toast({
@@ -47,165 +43,177 @@ export default function ShareProfileCard({ profileCardRef, profileUrl, address }
         console.error("Error generating image:", error)
         toast({
           title: "Download Failed",
-          description: "Could not generate image. Please try again.",
+          description: "Could not download profile card image.",
           variant: "destructive",
         })
       }
     }
   }
 
+  const handleShareOnTwitter = () => {
+    const tweetText = encodeURIComponent(`Check out my Universal Profile on the blockchain! ${profileUrl}`)
+    window.open(`https://twitter.com/intent/tweet?text=${tweetText}`, "_blank")
+  }
+
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(profileUrl)
-    setIsCopied(true)
     toast({
-      title: "Link Copied!",
-      description: "Your profile URL has been copied to clipboard.",
+      title: "Copied to Clipboard!",
+      description: "Profile URL copied to your clipboard.",
     })
-    setTimeout(() => setIsCopied(false), 2000) // Reset icon after 2 seconds
   }
 
-  const handleShareOnTwitter = () => {
-    const tweetText = `Check out my Universal Profile on the blockchain! #UniversalProfile #Web3 #Blockchain`
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(profileUrl)}`
-    window.open(twitterUrl, "_blank")
-  }
-
-  const handleMintAsNFT = async () => {
-    if (!profileCardRef.current) return
-
-    setIsUploading(true)
-    setIpfsHash(null)
+  const handleUploadToPinata = async () => {
+    if (!profileCardRef.current) {
+      toast({
+        title: "Upload Failed",
+        description: "Profile card not found for upload.",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
-      const blob = await toPng(profileCardRef.current, { cacheBust: true })
-      const response = await fetch(blob) // Convert data URL to Blob
-      const imageBlob = await response.blob()
+      const dataUrl = await toPng(profileCardRef.current, { cacheBust: true })
+      const blob = await (await fetch(dataUrl)).blob()
 
       const formData = new FormData()
-      formData.append("file", imageBlob, `universal-profile-${address}.png`)
+      formData.append("file", blob, `profile-card-${address}.png`)
 
-      const uploadResponse = await fetch("/api/pinata/upload", {
+      toast({
+        title: "Uploading to IPFS...",
+        description: "Please wait, this may take a moment.",
+      })
+
+      const response = await fetch("/api/pinata/upload", {
         method: "POST",
         body: formData,
       })
 
-      if (!uploadResponse.ok) {
-        throw new Error(`HTTP error! status: ${uploadResponse.status}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to upload to Pinata")
       }
 
-      const data = await uploadResponse.json()
-      setIpfsHash(data.ipfsHash)
+      const result = await response.json()
+      setIpfsHash(result.IpfsHash)
       toast({
-        title: "Image Uploaded to IPFS!",
-        description: `IPFS Hash: ${data.ipfsHash}`,
+        title: "Uploaded to IPFS!",
+        description: `IPFS Hash: ${result.IpfsHash}`,
       })
-      console.log("IPFS Hash:", data.ipfsHash)
+    } catch (error: any) {
+      console.error("Error uploading to Pinata:", error)
+      toast({
+        title: "Upload Failed",
+        description: `Could not upload to IPFS: ${error.message}`,
+        variant: "destructive",
+      })
+    }
+  }
 
-      // Here you would typically interact with your smart contract to mint the NFT
-      // For now, we'll just log the IPFS hash.
+  const handleMintProfileNFT = async () => {
+    if (!connectedAddress) {
       toast({
-        title: "Minting Feature (Coming Soon)",
-        description: "The image is on IPFS. Next step: Smart contract interaction!",
-        variant: "default",
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet to mint an NFT.",
+        variant: "destructive",
       })
-    } catch (error) {
-      console.error("Error uploading to IPFS or minting:", error)
+      return
+    }
+
+    if (!ipfsHash) {
+      toast({
+        title: "Image Not Uploaded",
+        description: "Please upload your profile card image to IPFS first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsMinting(true)
+    try {
+      // For a real NFT, you'd create a metadata JSON and upload it to IPFS,
+      // then use that metadata URI here. For simplicity, we'll use the image IPFS hash directly.
+      // A proper metadata URI would look like: `ipfs://${metadataIpfsHash}`
+      const tokenURI = `ipfs://${ipfsHash}`
+
+      toast({
+        title: "Minting Profile NFT...",
+        description: "Confirm the transaction in your wallet.",
+      })
+
+      const tx = await mintProfileNFT(connectedAddress, tokenURI)
+      console.log("Minting transaction:", tx)
+
+      toast({
+        title: "Profile NFT Minted!",
+        description: `Transaction Hash: ${tx.hash}`,
+      })
+    } catch (error: any) {
+      console.error("Error minting NFT:", error)
       toast({
         title: "Minting Failed",
-        description: "Could not upload image to IPFS or mint NFT. Check console for details.",
+        description: `Could not mint profile NFT: ${error.message}`,
         variant: "destructive",
       })
     } finally {
-      setIsUploading(false)
+      setIsMinting(false)
     }
   }
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="text-slate-300 hover:text-white border-slate-700 hover:border-cyan-500 transition-colors duration-300 bg-transparent"
-        >
-          <Share2 className="mr-2 h-4 w-4" /> Share Profile
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 text-white">
-        <DialogHeader>
-          <DialogTitle className="text-cyan-400">Share Your Universal Profile</DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Generate an image, get a shareable link, or mint your profile as an NFT.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="profile-url" className="sr-only">
-              Profile URL
-            </Label>
-            <Input
-              id="profile-url"
-              value={profileUrl}
-              readOnly
-              className="flex-1 bg-slate-800/50 border-slate-700 text-slate-200"
-            />
-            <Button
-              onClick={handleCopyToClipboard}
-              size="icon"
-              className="bg-slate-700 hover:bg-slate-600 text-slate-200"
-            >
-              {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              <span className="sr-only">Copy URL</span>
-            </Button>
-          </div>
+    <>
+      <Button onClick={() => setIsShareModalOpen(true)} className="flex items-center gap-2">
+        <Share2 className="h-4 w-4" /> Share Profile
+      </Button>
 
-          <div className="flex flex-col gap-2">
-            <Button
-              onClick={handleDownloadImage}
-              className="w-full bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-700 hover:to-purple-700 text-white"
-            >
-              <Download className="mr-2 h-4 w-4" /> Download Profile Image
-            </Button>
-            <Button onClick={handleShareOnTwitter} className="w-full bg-[#1DA1F2] hover:bg-[#1A91DA] text-white">
-              <Twitter className="mr-2 h-4 w-4" /> Share on Twitter
-            </Button>
-            <Button
-              onClick={handleMintAsNFT}
-              disabled={isUploading}
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading to IPFS...
-                </>
-              ) : (
-                <>
-                  <QrCode className="mr-2 h-4 w-4" /> Mint as Profile NFT (Testnet)
-                </>
+      <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Share Your Profile</DialogTitle>
+            <DialogDescription>Share your unique decentralized profile with others.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="profile-url" className="text-right">
+                URL
+              </Label>
+              <Input id="profile-url" value={profileUrl} readOnly className="col-span-3" />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleCopyToClipboard}
+                className="col-start-5 bg-transparent"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex justify-center p-4">
+              <QRCode value={profileUrl} size={256} level="H" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button onClick={handleDownloadImage} className="flex items-center gap-2">
+                <Download className="h-4 w-4" /> Download Profile Card
+              </Button>
+              <Button onClick={handleUploadToPinata} className="flex items-center gap-2" disabled={!!ipfsHash}>
+                <Share2 className="h-4 w-4" /> {ipfsHash ? "Uploaded to IPFS" : "Upload to IPFS"}
+              </Button>
+              {ipfsHash && (
+                <Button onClick={handleMintProfileNFT} className="flex items-center gap-2" disabled={isMinting}>
+                  {isMinting ? "Minting..." : "Mint as Profile NFT"}
+                </Button>
               )}
-            </Button>
-            {ipfsHash && (
-              <p className="text-sm text-slate-400 text-center mt-2">
-                IPFS Hash:{" "}
-                <a
-                  href={`https://gateway.pinata.cloud/ipfs/${ipfsHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-cyan-400 hover:underline break-all"
-                >
-                  {ipfsHash}
-                </a>
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center gap-2 mt-4">
-            <Label className="text-slate-300">Scan to view profile:</Label>
-            <div className="p-2 bg-white rounded-lg">
-              <QRCode value={profileUrl} size={128} level="H" renderAs="svg" />
+              <Button
+                variant="outline"
+                onClick={handleShareOnTwitter}
+                className="flex items-center gap-2 bg-transparent"
+              >
+                <Twitter className="h-4 w-4" /> Share on Twitter
+              </Button>
             </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

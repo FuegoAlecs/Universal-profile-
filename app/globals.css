@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import RainbowKit styles here */
+@import "@rainbow-me/rainbowkit/styles.css";
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -73,19 +76,4 @@
   body {
     @apply bg-background text-foreground;
   }
-}
-
-/* Custom animations */
-@keyframes pulse-slow {
-  0%,
-  100% {
-    opacity: 0.1;
-  }
-  50% {
-    opacity: 0.2;
-  }
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 8s infinite ease-in-out;
 }

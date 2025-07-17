@@ -3,13 +3,13 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 
 // Minimal ERC-6551 implementation for a Token Bound Account
-contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
+contract TokenBoundAccount is ERC721Holder, Ownable, IERC1271 {
     using Address for address payable;
 
     // The ERC-6551 Registry address that deployed this account
@@ -23,6 +23,9 @@ contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
     // The ID of the ERC-721 token that owns this account
     uint256 public immutable TOKEN_ID;
 
+    address public ownerTokenContract;
+    uint256 public ownerTokenId;
+
     // Event emitted when a call is executed
     event TransactionExecuted(
         address indexed to,
@@ -31,17 +34,27 @@ contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
         bytes result
     );
 
+    event AccountCreated(address indexed owner, address indexed tokenContract, uint256 tokenId);
+    event TokenTransferred(address indexed from, address indexed to, uint256 tokenId);
+
     constructor(
         bytes32 salt,
         uint256 chainId,
         address tokenContract,
-        uint256 tokenId
-    ) payable {
+        uint256 tokenId,
+        address _ownerTokenContract,
+        uint256 _ownerTokenId,
+        address initialOwner
+    ) payable Ownable(initialOwner) {
         ERC6551_REGISTRY = msg.sender; // The registry is the deployer
         SALT = salt;
         CHAIN_ID = chainId;
         TOKEN_CONTRACT = tokenContract;
         TOKEN_ID = tokenId;
+        require(_ownerTokenContract != address(0), "Invalid token contract address");
+        ownerTokenContract = _ownerTokenContract;
+        ownerTokenId = _ownerTokenId;
+        emit AccountCreated(initialOwner, _ownerTokenContract, _ownerTokenId);
     }
 
     // Fallback function to receive Ether
@@ -51,25 +64,26 @@ contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
     function execute(
         address to,
         uint256 value,
-        bytes calldata data,
-        uint8 operation
-    ) external returns (bytes memory result) {
-        // Only the token owner can execute calls
-        require(msg.sender == owner(), "Not token owner");
+        bytes calldata data
+    ) external onlyOwner returns (bool success) {
+        (success,) = to.call{value: value}(data);
+        require(success, "Execution failed");
+    }
 
-        // Operation types: 0 for call, 1 for delegatecall, 2 for create, 3 for create2
-        // For simplicity, we'll only support direct calls (operation 0)
-        require(operation == 0, "Unsupported operation");
+    // Optional: Function to transfer the ownership token to a new address
+    function transferOwnerToken(address _to) external onlyOwner {
+        IERC721(ownerTokenContract).transferFrom(address(this), _to, ownerTokenId);
+        emit TokenTransferred(address(this), _to, ownerTokenId);
+    }
 
-        (bool success, bytes memory returnData) = to.call{value: value}(data);
-        require(success, string(returnData));
-
-        emit TransactionExecuted(to, value, data, returnData);
-        return returnData;
+    // Optional: Function to withdraw Ether from the account
+    function withdrawEther(address payable _to, uint256 _amount) external onlyOwner {
+        require(address(this).balance >= _amount, "Insufficient balance");
+        _to.transfer(_amount);
     }
 
     // Returns the owner of the token that controls this account
-    function owner() public view returns (address) {
+    function owner() public view override returns (address) {
         // If this account is on the same chain as the token,
         // the owner is the current owner of the token.
         if (block.chainid == CHAIN_ID) {
@@ -84,37 +98,6 @@ contract TokenBoundAccount is IERC721Receiver, IERC1155Receiver, IERC1271 {
             // For this example, we'll assume same-chain ownership.
             return address(this);
         }
-    }
-
-    // ERC-721 Receiver interface
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
-    // ERC-1155 Receiver interface
-    function onERC1155Received(
-        address,
-        address,
-        uint256,
-        uint256,
-        bytes calldata
-    ) external pure override returns (bytes4) {
-        return IERC1155Receiver.onERC1155Received.selector;
-    }
-
-    function onERC1155BatchReceived(
-        address,
-        address,
-        uint256[] calldata,
-        uint256[] calldata,
-        bytes calldata
-    ) external pure override returns (bytes4) {
-        return IERC1155Receiver.onERC1155BatchReceived.selector;
     }
 
     // ERC-1271 isValidSignature for contract-based accounts

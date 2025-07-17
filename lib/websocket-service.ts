@@ -1,118 +1,66 @@
-"use client"
+// This file would contain WebSocket client-side logic, e.g., for real-time updates.
+// For now, it's a placeholder as real-time features are not yet implemented.
 
 export class WebSocketService {
-  private subscriptions = new Map<string, Set<(data: any) => void>>()
-  private pollingIntervals = new Map<string, NodeJS.Timeout>()
-  private webSocketConnections = new Map<string, () => void>()
+  private ws: WebSocket | null = null
+  private url: string
 
-  constructor() {
-    // Use polling instead of WebSocket for better Next.js compatibility
+  constructor(url: string) {
+    this.url = url
   }
 
-  async subscribeToAddress(address: string, callback: (data: any) => void): Promise<string | null> {
-    try {
-      const subscriptionId = `${address}-${Date.now()}`
+  connect(onMessage: (data: any) => void, onError?: (error: Event) => void) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log("WebSocket already connected.")
+      return
+    }
 
-      if (!this.subscriptions.has(subscriptionId)) {
-        this.subscriptions.set(subscriptionId, new Set())
+    this.ws = new WebSocket(this.url)
+
+    this.ws.onopen = () => {
+      console.log("WebSocket connected.")
+    }
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        onMessage(data)
+      } catch (e) {
+        console.error("Failed to parse WebSocket message:", e)
       }
+    }
 
-      this.subscriptions.get(subscriptionId)!.add(callback)
+    this.ws.onclose = (event) => {
+      console.log("WebSocket disconnected:", event)
+      // Implement reconnect logic if needed
+    }
 
-      // Start polling for this address
-      this.startPolling(address, subscriptionId)
-
-      // Placeholder for WebSocket connection
-      this.webSocketConnections.set(subscriptionId, connectWebSocket(address, callback))
-
-      return subscriptionId
-    } catch (error) {
-      console.error("Subscription error:", error)
-      return null
+    this.ws.onerror = (error) => {
+      console.error("WebSocket error:", error)
+      if (onError) onError(error)
     }
   }
 
-  private startPolling(address: string, subscriptionId: string) {
-    // Poll every 30 seconds for new activity
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/alchemy/activity/${address}`)
-        if (response.ok) {
-          const data = await response.json()
-          const callbacks = this.subscriptions.get(subscriptionId)
-
-          if (callbacks) {
-            callbacks.forEach((callback) => callback(data))
-          }
-        }
-      } catch (error) {
-        console.error("Polling error:", error)
-      }
-    }, 30000)
-
-    this.pollingIntervals.set(subscriptionId, interval)
-  }
-
-  unsubscribe(subscriptionId: string, callback?: (data: any) => void) {
-    const callbacks = this.subscriptions.get(subscriptionId)
-
-    if (callbacks) {
-      if (callback) {
-        callbacks.delete(callback)
-      } else {
-        callbacks.clear()
-      }
-
-      if (callbacks.size === 0) {
-        this.subscriptions.delete(subscriptionId)
-
-        // Clear polling interval
-        const interval = this.pollingIntervals.get(subscriptionId)
-        if (interval) {
-          clearInterval(interval)
-          this.pollingIntervals.delete(subscriptionId)
-        }
-
-        // Disconnect WebSocket
-        const disconnectWebSocket = this.webSocketConnections.get(subscriptionId)
-        if (disconnectWebSocket) {
-          disconnectWebSocket()
-          this.webSocketConnections.delete(subscriptionId)
-        }
-      }
+  sendMessage(message: any) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message))
+    } else {
+      console.warn("WebSocket not connected. Message not sent:", message)
     }
   }
 
   disconnect() {
-    // Clear all intervals
-    for (const interval of this.pollingIntervals.values()) {
-      clearInterval(interval)
+    if (this.ws) {
+      this.ws.close()
+      this.ws = null
+      console.log("WebSocket disconnected.")
     }
-
-    // Disconnect all WebSockets
-    for (const disconnect of this.webSocketConnections.values()) {
-      disconnect()
-    }
-
-    this.subscriptions.clear()
-    this.pollingIntervals.clear()
-    this.webSocketConnections.clear()
   }
 }
 
-// Singleton instance
-export const webSocketService = new WebSocketService()
-
-export const connectWebSocket = (address: string, onUpdate: (data: any) => void) => {
-  console.log(`Connecting WebSocket for address: ${address}`)
-  // In a real application, you would establish a WebSocket connection here
-  // and listen for events related to the address.
-  // Example:
-  // const ws = new WebSocket(`wss://your-websocket-api.com/ws?address=${address}`);
-  // ws.onmessage = (event) => {
-  //     const data = JSON.parse(event.data);
-  //     onUpdate(data);
-  // };
-  // return () => ws.close(); // Return a cleanup function
-  return () => console.log(`Disconnected WebSocket for address: ${address}`)
-}
+// Example usage (not actively used in the current UI, but available)
+// const websocketService = new WebSocketService("ws://localhost:8080/ws");
+// websocketService.connect((data) => {
+//   console.log("Received data:", data);
+// });
+// websocketService.sendMessage({ type: "subscribe", payload: "profile_updates" });

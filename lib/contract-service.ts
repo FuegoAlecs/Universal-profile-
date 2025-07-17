@@ -1,42 +1,43 @@
 import { ethers } from "ethers"
-import ProfileRegistryABI from "../contracts/ProfileRegistry.json" // Assuming you have ABI
-import TokenBoundAccountABI from "../contracts/TokenBoundAccount.json" // Assuming you have ABI
+import ProfileRegistryABI from "../contracts/ProfileRegistry.json"
+import TokenBoundAccountABI from "../contracts/TokenBoundAccount.json"
+import ProfileNFTABI from "../contracts/ProfileNFT.json" // Import the new ABI
+
+const PROFILE_REGISTRY_ADDRESS = process.env.NEXT_PUBLIC_PROFILE_REGISTRY_ADDRESS || ""
+const TOKEN_BOUND_ACCOUNT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_BOUND_ACCOUNT_ADDRESS || ""
+const PROFILE_NFT_ADDRESS = process.env.NEXT_PUBLIC_PROFILE_NFT_ADDRESS || ""
 
 const getProvider = () => {
-  if (typeof window !== "undefined" && (window as any).ethereum) {
-    return new ethers.BrowserProvider((window as any).ethereum)
+  if (typeof window !== "undefined" && window.ethereum) {
+    return new ethers.BrowserProvider(window.ethereum)
   }
-  // Fallback for server-side or if no wallet is connected
-  // You might want to use a static provider like AlchemyProvider here
+  // Fallback for server-side or environments without window.ethereum
+  // You might want to configure a default RPC provider here for server-side operations
+  // For client-side, this should ideally not be reached if wallet is connected
   return null
 }
 
 const getSigner = async () => {
   const provider = getProvider()
-  if (provider) {
-    return provider.getSigner()
+  if (!provider) {
+    throw new Error("No Ethereum provider found. Please connect your wallet.")
   }
-  return null
+  return provider.getSigner()
 }
 
 export const getProfileRegistryContract = async () => {
   const signer = await getSigner()
-  if (!signer) return null
-
-  const contractAddress = process.env.NEXT_PUBLIC_PROFILE_REGISTRY_ADDRESS
-  if (!contractAddress) {
-    console.error("NEXT_PUBLIC_PROFILE_REGISTRY_ADDRESS is not set.")
-    return null
-  }
-
-  return new ethers.Contract(contractAddress, ProfileRegistryABI.abi, signer)
+  return new ethers.Contract(PROFILE_REGISTRY_ADDRESS, ProfileRegistryABI.abi, signer)
 }
 
-export const getTokenBoundAccountContract = async (accountAddress: string) => {
+export const getTokenBoundAccountContract = async () => {
   const signer = await getSigner()
-  if (!signer) return null
+  return new ethers.Contract(TOKEN_BOUND_ACCOUNT_ADDRESS, TokenBoundAccountABI.abi, signer)
+}
 
-  return new ethers.Contract(accountAddress, TokenBoundAccountABI.abi, signer)
+export const getProfileNFTContract = async () => {
+  const signer = await getSigner()
+  return new ethers.Contract(PROFILE_NFT_ADDRESS, ProfileNFTABI.abi, signer)
 }
 
 // Helper to get contract instance for read-only operations without a signer
@@ -44,10 +45,33 @@ export const getProfileRegistryContractReadOnly = () => {
   const provider = new ethers.JsonRpcProvider(
     `https://eth-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
   ) // Use Alchemy for read-only
-  const contractAddress = process.env.NEXT_PUBLIC_PROFILE_REGISTRY_ADDRESS
-  if (!contractAddress) {
-    console.error("NEXT_PUBLIC_PROFILE_REGISTRY_ADDRESS is not set.")
-    return null
-  }
-  return new ethers.Contract(contractAddress, ProfileRegistryABI.abi, provider)
+  return new ethers.Contract(PROFILE_REGISTRY_ADDRESS, ProfileRegistryABI.abi, provider)
 }
+
+export const getProfileNFTContractReadOnly = () => {
+  const provider = new ethers.JsonRpcProvider(
+    `https://eth-sepolia.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`,
+  )
+  return new ethers.Contract(PROFILE_NFT_ADDRESS, ProfileNFTABI.abi, provider)
+}
+
+export const registerProfile = async (name: string, bio: string, profileImageUri: string) => {
+  const contract = await getProfileRegistryContract()
+  const tx = await contract.registerProfile(name, bio, profileImageUri)
+  await tx.wait()
+  return tx
+}
+
+export const getProfile = async (address: string) => {
+  const contract = await getProfileRegistryContract()
+  return contract.getProfile(address)
+}
+
+export const mintProfileNFT = async (toAddress: string, tokenURI: string) => {
+  const contract = await getProfileNFTContract()
+  const tx = await contract.safeMint(toAddress, tokenURI)
+  await tx.wait()
+  return tx
+}
+
+// Add more contract interaction functions as needed

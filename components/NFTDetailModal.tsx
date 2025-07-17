@@ -1,71 +1,127 @@
-"use client"
-
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { formatAddress } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { ExternalLink } from "lucide-react"
 import type { AlchemyNFT } from "@/types/alchemy"
+import { shortenAddress } from "@/lib/utils"
 
 interface NFTDetailModalProps {
   nft: AlchemyNFT
   isOpen: boolean
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
 }
 
-export default function NFTDetailModal({ nft, isOpen, onOpenChange }: NFTDetailModalProps) {
+export function NFTDetailModal({ nft, isOpen, onClose }: NFTDetailModalProps) {
   if (!nft) return null
 
+  const openseaLink = `https://opensea.io/assets/${nft.contract.address}/${nft.tokenId}`
+  const etherscanLink = `https://sepolia.etherscan.io/token/${nft.contract.address}?a=${nft.tokenId}` // Assuming Sepolia
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 text-white">
-        <DialogHeader>
-          <DialogTitle className="text-cyan-400 text-2xl font-bold break-words">
-            {nft.name || "Untitled NFT"}
-          </DialogTitle>
-          <DialogDescription className="text-slate-400">
-            {nft.collectionName && `From: ${nft.collectionName}`}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="relative w-full h-64 sm:h-80 rounded-lg overflow-hidden bg-slate-800 flex items-center justify-center">
-            <Image
-              src={nft.image || "/placeholder.png"}
-              alt={nft.name || "NFT Image"}
-              layout="fill"
-              objectFit="contain"
-              className="transition-transform duration-300 hover:scale-105"
-              onError={(e) => {
-                e.currentTarget.src = "/placeholder.png"
-              }}
-            />
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px] p-0">
+        <ScrollArea className="max-h-[90vh] rounded-lg">
+          <div className="p-6">
+            <DialogHeader className="mb-4">
+              <DialogTitle className="text-2xl font-bold">{nft.name || `NFT #${nft.tokenId}`}</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {nft.contract.name || "Unknown Collection"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-6">
+              {nft.imageUrl ? (
+                <Image
+                  src={nft.imageUrl || "/placeholder.svg"}
+                  alt={nft.name || `NFT ${nft.tokenId}`}
+                  layout="fill"
+                  objectFit="contain"
+                  className="rounded-lg"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500 text-lg text-center p-4">
+                  No Image Available
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {nft.description && (
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Description</h3>
+                  <p className="text-sm text-muted-foreground">{nft.description}</p>
+                </div>
+              )}
+
+              <Separator />
+
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Details</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="font-medium">Token ID:</div>
+                  <div>{nft.tokenId}</div>
+
+                  <div className="font-medium">Contract Address:</div>
+                  <div className="truncate">{shortenAddress(nft.contract.address, 6)}</div>
+
+                  <div className="font-medium">Token Type:</div>
+                  <div>{nft.tokenType}</div>
+
+                  {nft.contract.symbol && (
+                    <>
+                      <div className="font-medium">Symbol:</div>
+                      <div>{nft.contract.symbol}</div>
+                    </>
+                  )}
+                  {nft.timeLastUpdated && (
+                    <>
+                      <div className="font-medium">Last Updated:</div>
+                      <div>{new Date(nft.timeLastUpdated).toLocaleDateString()}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Links</h3>
+                <div className="flex flex-wrap gap-2">
+                  {openseaLink && (
+                    <Button variant="outline" asChild>
+                      <a href={openseaLink} target="_blank" rel="noopener noreferrer">
+                        OpenSea <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                  {etherscanLink && (
+                    <Button variant="outline" asChild>
+                      <a href={etherscanLink} target="_blank" rel="noopener noreferrer">
+                        Etherscan <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                  {nft.tokenUri?.gateway && (
+                    <Button variant="outline" asChild>
+                      <a href={nft.tokenUri.gateway} target="_blank" rel="noopener noreferrer">
+                        Metadata <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                  {nft.contract.openSeaMetadata?.externalUrl && (
+                    <Button variant="outline" asChild>
+                      <a href={nft.contract.openSeaMetadata.externalUrl} target="_blank" rel="noopener noreferrer">
+                        Collection Site <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {nft.tokenType && (
-              <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 border-purple-500/30">
-                {nft.tokenType}
-              </Badge>
-            )}
-            {nft.contract.address && (
-              <Badge variant="secondary" className="bg-slate-700/50 text-slate-300 border-slate-600/50">
-                Contract: {formatAddress(nft.contract.address)}
-              </Badge>
-            )}
-            {nft.tokenId && (
-              <Badge variant="secondary" className="bg-slate-700/50 text-slate-300 border-slate-600/50">
-                Token ID: {nft.tokenId}
-              </Badge>
-            )}
-          </div>
-          <Separator className="my-2 bg-slate-700/50" />
-          <div>
-            <h4 className="font-semibold text-lg mb-2 text-cyan-300">Description</h4>
-            <p className="text-slate-300 text-sm max-h-40 overflow-y-auto custom-scrollbar">
-              {nft.description || "No description available for this NFT."}
-            </p>
-          </div>
-          {/* You can add more details here, e.g., attributes, external links */}
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )

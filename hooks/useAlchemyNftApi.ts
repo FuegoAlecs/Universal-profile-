@@ -1,40 +1,41 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { AlchemyNFT } from "@/types/alchemy"
 
-export function useAlchemyNftApi(address: string) {
-  const [data, setData] = useState<AlchemyNFT[] | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
+export function useAlchemyNftApi(address: string | undefined) {
+  const [nfts, setNfts] = useState<AlchemyNFT[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchNfts = useCallback(async () => {
     if (!address) {
-      setData(null)
-      setIsLoading(false)
+      setNfts([])
+      setLoading(false)
+      setError(null)
       return
     }
 
-    const fetchNfts = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const response = await fetch(`/api/alchemy/nfts/${address}`)
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const nftsData: AlchemyNFT[] = await response.json()
-        setData(nftsData)
-      } catch (e) {
-        setError(e as Error)
-        setData(null)
-      } finally {
-        setIsLoading(false)
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/alchemy/nfts/${address}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
+      const data: { nfts: AlchemyNFT[] } = await response.json()
+      setNfts(data.nfts)
+    } catch (e: any) {
+      setError(e.message || "Failed to fetch NFTs")
+      console.error("Error fetching Alchemy NFTs:", e)
+    } finally {
+      setLoading(false)
     }
-
-    fetchNfts()
   }, [address])
 
-  return { data, isLoading, error }
+  useEffect(() => {
+    fetchNfts()
+  }, [fetchNfts])
+
+  return { nfts, loading, error, refetch: fetchNfts }
 }
