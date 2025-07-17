@@ -1,7 +1,7 @@
 import type React from "react"
 import { Inter } from "next/font/google"
+import "@rainbow-me/rainbowkit/styles.css"
 import "./globals.css"
-// Removed direct import of RainbowKit styles here
 import { getDefaultConfig, RainbowKitProvider } from "@rainbow-me/rainbowkit"
 import { WagmiProvider } from "wagmi"
 import { mainnet, sepolia } from "wagmi/chains"
